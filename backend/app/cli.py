@@ -9,6 +9,7 @@ import sys
 
 from sqlalchemy import func, select
 
+from app.core.config import database_warning
 from app.core.security import hash_password
 from app.database import SessionLocal
 from app.models import ScreenGroup, User
@@ -59,7 +60,14 @@ def main(argv=None) -> int:
     g = sub.add_parser("seed-groups", help="cria os grupos padrão")
     g.set_defaults(func=seed_groups)
     args = p.parse_args(argv)
-    return args.func(args)
+    warning = database_warning()
+    if warning:
+        print(warning, file=sys.stderr)
+    try:
+        return args.func(args)
+    except RuntimeError as e:
+        print(f"Erro: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

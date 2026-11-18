@@ -85,6 +85,22 @@ class Settings(BaseSettings):
         return self.storage_dir / "temporary"
 
 
+def database_warning() -> str:
+    """Mensagem para ferramentas de linha de comando quando o banco não foi configurado."""
+    import os
+
+    s = get_settings()
+    if "UDS_DATABASE_URL" in os.environ or not s.database_url.startswith("sqlite"):
+        return ""
+    if (BASE_DIR / ".env").exists() and "UDS_DATABASE_URL" in (BASE_DIR / ".env").read_text():
+        return ""
+    return (
+        "AVISO: UDS_DATABASE_URL não definida (o .env não foi carregado?). "
+        f"Usando o SQLite de desenvolvimento: {s.database_url}\n"
+        "Em produção, carregue o .env antes: set -ae; . /opt/updown-digital/.env; set +a"
+    )
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

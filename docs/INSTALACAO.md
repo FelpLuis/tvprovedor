@@ -161,24 +161,37 @@ sudo nano /opt/updown-digital/.env
 ```
 
 Preencha `UDS_SECRET_KEY` com o valor gerado e `UDS_DATABASE_URL` com a senha e a porta do passo 4.
+No nano, salve com **Ctrl+O, Enter** e saia com **Ctrl+X**.
 Em produção a aplicação **não inicia** com chave fraca ou com SQLite.
+
+Confira se o arquivo existe, se o usuário do serviço consegue lê-lo e se as variáveis estão preenchidas:
+
+```bash
+sudo -u updown-digital test -r /opt/updown-digital/.env && echo env-ok
+```
+
+```bash
+sudo grep -E '^UDS_(SECRET_KEY|DATABASE_URL)=.+' /opt/updown-digital/.env | sed 's/=.*/=(preenchido)/'
+```
+
+As duas linhas `UDS_SECRET_KEY` e `UDS_DATABASE_URL` devem aparecer como `(preenchido)`.
 
 ## 6. Migrações e usuário administrador
 
 Impacto: cria as tabelas no banco `updown_digital`.
 
 ```bash
-cd /opt/updown-digital/app/backend && sudo -u updown-digital bash -c 'set -a; . /opt/updown-digital/.env; set +a; /opt/updown-digital/venv/bin/alembic upgrade head'
+cd /opt/updown-digital/app/backend && sudo -u updown-digital bash -c 'set -ae; . /opt/updown-digital/.env; set +a; /opt/updown-digital/venv/bin/alembic upgrade head'
 ```
 
 ```bash
-cd /opt/updown-digital/app/backend && sudo -u updown-digital bash -c 'set -a; . /opt/updown-digital/.env; set +a; /opt/updown-digital/venv/bin/python -m app.cli create-admin --username admin --email ti@updown.com.br'
+cd /opt/updown-digital/app/backend && sudo -u updown-digital bash -c 'set -ae; . /opt/updown-digital/.env; set +a; /opt/updown-digital/venv/bin/python -m app.cli create-admin --username admin --email ti@updown.com.br'
 ```
 
 Grupos sugeridos (NOC, Administrativo, Comercial, Recepção, Financeiro, Operações):
 
 ```bash
-cd /opt/updown-digital/app/backend && sudo -u updown-digital bash -c 'set -a; . /opt/updown-digital/.env; set +a; /opt/updown-digital/venv/bin/python -m app.cli seed-groups'
+cd /opt/updown-digital/app/backend && sudo -u updown-digital bash -c 'set -ae; . /opt/updown-digital/.env; set +a; /opt/updown-digital/venv/bin/python -m app.cli seed-groups'
 ```
 
 ## 7. Teste manual (antes de criar o serviço)
@@ -186,7 +199,7 @@ cd /opt/updown-digital/app/backend && sudo -u updown-digital bash -c 'set -a; . 
 Impacto: processo temporário em `127.0.0.1:8095`; encerre com Ctrl+C.
 
 ```bash
-cd /opt/updown-digital/app/backend && sudo -u updown-digital bash -c 'set -a; . /opt/updown-digital/.env; set +a; /opt/updown-digital/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8095'
+cd /opt/updown-digital/app/backend && sudo -u updown-digital bash -c 'set -ae; . /opt/updown-digital/.env; set +a; /opt/updown-digital/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8095'
 ```
 
 Em outro terminal:

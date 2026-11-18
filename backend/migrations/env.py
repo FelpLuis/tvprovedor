@@ -4,7 +4,9 @@ import sqlalchemy as sa
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from app.core.config import get_settings
+import sys
+
+from app.core.config import database_warning, get_settings
 from app.database import Base
 from app.models.base import UTCDateTime
 import app.models  # noqa: F401  (registra as tabelas)
@@ -12,6 +14,9 @@ import app.models  # noqa: F401  (registra as tabelas)
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+if database_warning():
+    print(database_warning(), file=sys.stderr)
 
 if not config.get_main_option("sqlalchemy.url"):
     config.set_main_option("sqlalchemy.url", get_settings().database_url.replace("%", "%%"))

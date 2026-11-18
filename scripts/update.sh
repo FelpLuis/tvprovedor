@@ -9,6 +9,7 @@ VENV="$BASE/venv"
 BRANCH="${1:-main}"
 USER_NAME="updown-digital"
 
+[ -r "$BASE/.env" ] || { echo "Arquivo $BASE/.env não encontrado"; exit 1; }
 cd "$APP"
 PREV="$(git rev-parse HEAD)"
 echo "Versão atual: $PREV"
@@ -26,7 +27,7 @@ sudo -u "$USER_NAME" "$VENV/bin/pip" install --quiet -r backend/requirements.txt
 
 echo "4/6 Migrações do banco..."
 cd "$APP/backend"
-sudo -u "$USER_NAME" bash -c "set -a; . '$BASE/.env'; set +a; '$VENV/bin/alembic' upgrade head"
+sudo -u "$USER_NAME" bash -c "set -ae; . '$BASE/.env'; set +a; '$VENV/bin/alembic' upgrade head"
 
 echo "5/6 Reiniciando o serviço..."
 systemctl restart updown-digital
