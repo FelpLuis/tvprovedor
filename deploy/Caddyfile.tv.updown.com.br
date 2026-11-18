@@ -1,0 +1,22 @@
+# Bloco do UpDown Digital para o Caddy JÁ EXISTENTE.
+# NÃO substitua o Caddyfile atual: adicione este bloco ao final (ou use "import")
+# após backup, valide com "caddy validate" e aplique com "systemctl reload caddy".
+
+tv.updown.com.br {
+	encode zstd gzip
+
+	# uploads de vídeo (ajuste junto com UDS_MAX_VIDEO_MB)
+	request_body {
+		max_size 1100MB
+	}
+
+	reverse_proxy 127.0.0.1:8095 {
+		# respostas grandes (vídeos) sem buffer
+		flush_interval -1
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+}
