@@ -30,3 +30,13 @@ def test_security_headers(client):
     assert "frame-src *" in r.headers["content-security-policy"]
     assert client.get("/api/health").headers["cache-control"] == "no-store"
     assert client.get("/player").status_code in (200, 307)
+
+
+def test_database_unavailable_returns_503(client):
+    from app import database
+
+    database.configure_engine("postgresql+psycopg://x:y@127.0.0.1:1/nada?connect_timeout=2")
+    r = client.post("/api/auth/login", json={"username": "admin", "password": "x"})
+    assert r.status_code == 503
+    assert "Banco de dados indisponível" in r.json()["detail"]
+    assert client.get("/api/health").status_code == 503
