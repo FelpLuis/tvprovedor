@@ -1,0 +1,29 @@
+# /etc/systemd/system/updown-digital.service
+[Unit]
+Description=UpDown Digital (API, painel e player)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=updown-digital
+Group=updown-digital
+WorkingDirectory=/opt/updown-digital/app/backend
+EnvironmentFile=/opt/updown-digital/.env
+# Escuta somente em localhost; o Caddy publica em HTTPS.
+# Um único worker: limitadores de tentativa e manutenção rodam em memória.
+ExecStart=/opt/updown-digital/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8095 --workers 1 --no-server-header --log-level info
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+UMask=0027
+NoNewPrivileges=true
+# Endurecimento adicional. Em LXC não privilegiado alguns itens exigem "nesting";
+# ative e teste um a um (systemctl restart + status) antes de manter.
+#PrivateTmp=true
+#ProtectSystem=full
+#ProtectHome=true
+#ReadWritePaths=/opt/updown-digital/storage
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+{
+  "name": "UpDown Digital Player",
+  "short_name": "UpDown Digital",
+  "start_url": "/player/",
+  "scope": "/player/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#140058",
+  "theme_color": "#140058",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

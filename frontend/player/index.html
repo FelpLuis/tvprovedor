@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#140058">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>UpDown Digital</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="brand/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+  <link rel="stylesheet" href="player.css">
+</head>
+<body>
+  <!-- Reprodução de mídia: duas camadas para transição suave -->
+  <div id="stage" class="stage hidden">
+    <div class="layer" id="layer-a"></div>
+    <div class="layer" id="layer-b"></div>
+  </div>
+
+  <!-- Dashboards (Grafana, Power BI, Zabbix, UpDown BI) -->
+  <div id="dashboard" class="dashboard hidden"></div>
+
+  <!-- Ativação -->
+  <section id="activation" class="screen hidden">
+    <div class="brand"><img class="brand-logo" src="brand/logo-updown.png" alt="UpDown Internet"><span class="sub">Digital</span></div>
+    <p class="label">Código de ativação</p>
+    <div id="activation-code" class="code">······</div>
+    <p class="hint">No painel <b id="activation-host"></b>, acesse <b>TVs → Ativar TV</b> e informe este código.</p>
+    <p id="activation-status" class="muted">Gerando código…</p>
+  </section>
+
+  <!-- Mensagens: sem programação, desativada, erro -->
+  <section id="message" class="screen hidden">
+    <div class="brand"><img class="brand-logo" src="brand/logo-updown.png" alt="UpDown Internet"><span class="sub">Digital</span></div>
+    <div id="message-clock" class="clock"></div>
+    <h1 id="message-title"></h1>
+    <p id="message-text" class="muted"></p>
+  </section>
+
+  <!-- Indicador discreto de falta de conexão -->
+  <div id="offline-badge" class="badge hidden" title="Sem conexão com o servidor">●</div>
+  <!-- Informações técnicas (tecla i / Info / Menu) -->
+  <pre id="info" class="info hidden"></pre>
+  <div id="fullscreen-hint" class="toast hidden">Pressione OK para tela cheia</div>
+
+  <script src="media-cache.js"></script>
+  <script src="dashboard.js"></script>
+  <script src="player.js"></script>
+</body>
+</html>
