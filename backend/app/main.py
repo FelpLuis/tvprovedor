@@ -10,7 +10,7 @@ from sqlalchemy.exc import DBAPIError, OperationalError
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import auth, dashboards, groups, media, player, playlists, screens, system, users
+from app.api import auth, cameras, dashboards, groups, media, player, playlists, screens, system, users
 from app.api.system import APP_VERSION
 from app.core.config import get_settings
 from app.services.media import ensure_storage_dirs
@@ -68,7 +68,7 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(SecurityHeaders)
 
-    for r in (auth, users, groups, screens, media, playlists, dashboards, player, system):
+    for r in (auth, users, groups, screens, media, playlists, dashboards, cameras, player, system):
         app.include_router(r.router, prefix="/api")
 
     @app.exception_handler(OperationalError)

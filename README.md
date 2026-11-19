@@ -50,6 +50,8 @@ Cada TV tem **um perfil fixo**:
   cheia, tudo definido no gerenciador.
 - **Energia e som**: ligar/desligar agora (por TV ou grupo), horário de funcionamento e volume.
   As TVs sempre chamam o servidor (HTTPS), então funcionam em qualquer rede, sem SSH ou VPN.
+- **CFTV Intelbras**: mosaico de câmeras ao vivo (RTSP direto da rede local, sem passar pelo
+  servidor), cadastro de NVR/DVR por canais, rodízio e status por câmera.
 - **App Android TV** com a URL única embutida: abre sozinho ao ligar a TV, em tela cheia, e é
   instalado pela rede com `scripts/instalar_tv.sh`, sem abrir o navegador da TV.
 

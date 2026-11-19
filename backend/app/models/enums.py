@@ -13,10 +13,11 @@ class ScreenProfile(str, Enum):
     POWERBI_PLAYER = "POWERBI_PLAYER"
     ZABBIX_PLAYER = "ZABBIX_PLAYER"
     UPDOWN_BI_PLAYER = "UPDOWN_BI_PLAYER"
+    CAMERA_PLAYER = "CAMERA_PLAYER"  # CFTV: mosaico de câmeras (requer o app Android)
 
     @property
     def is_dashboard(self) -> bool:
-        return self is not ScreenProfile.MEDIA_PLAYER
+        return self not in (ScreenProfile.MEDIA_PLAYER, ScreenProfile.CAMERA_PLAYER)
 
     @property
     def dashboard_kind(self):

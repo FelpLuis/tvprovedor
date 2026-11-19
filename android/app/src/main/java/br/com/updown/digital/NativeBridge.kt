@@ -97,6 +97,27 @@ class NativeBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun getSetupStatus(): String = activity.setup.status()
 
+    /** CFTV: mostra o mosaico de câmeras (RTSP direto da rede local) por cima do player. */
+    @JavascriptInterface
+    fun showCameras(json: String) {
+        if (!trusted()) return
+        activity.runOnUiThread { activity.cameraWall.show(json) }
+    }
+
+    @JavascriptInterface
+    fun hideCameras() {
+        activity.runOnUiThread { activity.cameraWall.hide() }
+    }
+
+    @Volatile private var cameraStatus = ""
+
+    /** Resumo do mosaico para o painel (lido pelo heartbeat). */
+    @JavascriptInterface
+    fun getCameraStatus(): String {
+        activity.runOnUiThread { cameraStatus = activity.cameraWall.status() }
+        return cameraStatus
+    }
+
     @JavascriptInterface
     fun reload() {
         if (trusted()) activity.reloadPlayer()

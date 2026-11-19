@@ -7,8 +7,8 @@ import {
 import { session } from '../session.js';
 
 async function loadRefs() {
-  const [groups, playlists, dashboards] = await Promise.all([get('/groups'), get('/playlists'), get('/dashboards')]);
-  return { groups, playlists, dashboards };
+  const [groups, playlists, dashboards, cameras] = await Promise.all([get('/groups'), get('/playlists'), get('/dashboards'), get('/cameras')]);
+  return { groups, playlists, dashboards, cameras };
 }
 
 const profileOptions = Object.entries(PROFILES);
@@ -32,6 +32,13 @@ function screenFields(refs, values = {}) {
     { name: 'dashboard_id', label: 'Dashboard', type: 'select', numeric: true, options: dashOpts(values.profile || 'MEDIA_PLAYER') },
     { name: 'refresh_seconds', label: 'Intervalo de atualização (s)', type: 'number', min: 10,
       help: 'Somente dashboards. Vazio = usar o do dashboard.' },
+    { name: 'camera_ids', label: 'Câmeras do mosaico (na ordem em que forem marcadas)', type: 'multiselect', full: true,
+      options: refs.cameras.filter((c) => c.is_active).map((c) => [c.id, `${c.name}${c.location ? ' — ' + c.location : ''}`]),
+      empty: 'Nenhuma câmera cadastrada. Cadastre em Câmeras.' },
+    { name: 'camera_layout', label: 'Mosaico', type: 'select',
+      options: [['auto', 'Automático (pela quantidade)'], ['1', '1 câmera'], ['4', '2 × 2'], ['9', '3 × 3'], ['16', '4 × 4']] },
+    { name: 'camera_cycle_seconds', label: 'Rodízio de páginas (s)', type: 'number', min: 0, max: 3600, default: 0,
+      help: 'Com mais câmeras que espaços no mosaico, troca de página neste intervalo. 0 = sem rodízio.' },
     { name: 'status', label: 'Status', type: 'select', options: [['active', 'Ativa'], ['disabled', 'Desativada']] },
     { name: 'description', label: 'Descrição', type: 'textarea', full: true },
     { type: 'section', label: 'Tela' },
@@ -58,9 +65,11 @@ function screenFields(refs, values = {}) {
   }
   function updateProfile(profile, inputs) {
     const isMedia = profile === 'MEDIA_PLAYER';
+    const isCam = profile === 'CAMERA_PLAYER';
     inputs.playlist_id.el.closest('.field').classList.toggle('hidden', !isMedia);
-    inputs.dashboard_id.el.closest('.field').classList.toggle('hidden', isMedia);
-    inputs.refresh_seconds.el.closest('.field').classList.toggle('hidden', isMedia);
+    inputs.dashboard_id.el.closest('.field').classList.toggle('hidden', isMedia || isCam);
+    inputs.refresh_seconds.el.closest('.field').classList.toggle('hidden', isMedia || isCam);
+    ['camera_ids', 'camera_layout', 'camera_cycle_seconds'].forEach((k) => inputs[k].el.closest('.field').classList.toggle('hidden', !isCam));
     const sel = inputs.dashboard_id.el;
     const cur = sel.value;
     clear(sel, dashOpts(profile).map(([v, l]) => h('option', { value: v === null ? '' : v }, l)));
@@ -93,6 +102,8 @@ function cleanScreenValues(v) {
   if (out.safe_margin_percent === null || out.safe_margin_percent === undefined) out.safe_margin_percent = 0;
   delete out.resolution_preset; delete out.res_w; delete out.res_h;
   if (out.profile === 'MEDIA_PLAYER') { out.dashboard_id = null; out.refresh_seconds = null; } else { out.playlist_id = null; }
+  if (out.profile === 'CAMERA_PLAYER') { out.dashboard_id = null; out.refresh_seconds = null; }
+  if (out.camera_cycle_seconds === null || out.camera_cycle_seconds === undefined) out.camera_cycle_seconds = 0;
   return out;
 }
 
@@ -267,6 +278,7 @@ function infoPane(s) {
     kv('IP', s.last_ip), kv('Navegador', s.user_agent),
     kv('Tela configurada', displayConfigured(s)),
     kv('Tela detectada', displayDetected(s.display_info)),
+    s.profile === 'CAMERA_PLAYER' ? kv('CFTV (informado pela TV)', (s.display_info || {}).cameras || (s.online ? 'sem informação (TV sem o app?)' : 'TV offline')) : null,
     kv('Armazenamento local', st.usage !== undefined ? `${fmtBytes(st.usage)} de ${fmtBytes(st.quota)}${st.downloading ? ' · baixando ' + st.downloading : ''}` : null),
     kv('Último erro', s.last_error ? `${s.last_error} (${fmtDate(s.last_error_at)})` : null),
     kv('Ativada em', fmtDate(s.activated_at)), kv('Token expira em', fmtDate(s.token_expires_at)),

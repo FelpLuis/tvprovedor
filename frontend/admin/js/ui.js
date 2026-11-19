@@ -161,6 +161,22 @@ export function buildForm(fields, values = {}) {
       input = h('textarea', { id, name: f.name, placeholder: f.placeholder }, val || '');
     } else if (f.type === 'checkbox') {
       input = h('input', { id, name: f.name, type: 'checkbox', checked: !!val });
+    } else if (f.type === 'multiselect') {
+      // lista de opções marcáveis; a ordem de marcação é preservada
+      const chosen = (val || []).map(Number);
+      input = h('div', { id, class: 'multiselect', style: 'display:flex; flex-direction:column; gap:4px; max-height:220px; overflow:auto; padding:8px; border:1px solid var(--border); border-radius:8px' });
+      input._chosen = chosen;
+      const draw = () => clear(input, f.options.length ? f.options.map(([v, l]) => {
+        const cb = h('input', { type: 'checkbox', checked: chosen.includes(Number(v)) });
+        cb.addEventListener('change', () => {
+          const n = Number(v);
+          if (cb.checked) { if (!chosen.includes(n)) chosen.push(n); } else { chosen.splice(chosen.indexOf(n), 1); }
+          draw();
+        });
+        const pos = chosen.indexOf(Number(v));
+        return h('label', { class: 'check small' }, cb, pos >= 0 ? h('b', null, `${pos + 1}. `) : null, l);
+      }) : h('span', { class: 'muted small' }, f.empty || 'Nenhuma opção'));
+      draw();
     } else {
       input = h('input', { id, name: f.name, type: f.type || 'text', value: val === null || val === undefined ? '' : val,
         placeholder: f.placeholder, min: f.min, max: f.max, required: f.required, autocomplete: f.autocomplete || 'off' });
@@ -183,6 +199,7 @@ export function buildForm(fields, values = {}) {
       for (const [name, { el, def }] of Object.entries(inputs)) {
         if (def.disabled) continue;
         if (def.type === 'checkbox') out[name] = el.checked;
+        else if (def.type === 'multiselect') out[name] = [...el._chosen];
         else if (def.type === 'number') out[name] = el.value === '' ? null : Number(el.value);
         else if (def.type === 'select' && def.numeric) out[name] = el.value === '' ? null : Number(el.value);
         else if (def.type === 'select' && def.nullable) out[name] = el.value === '' ? null : el.value;
@@ -232,6 +249,7 @@ export const PROFILES = {
   POWERBI_PLAYER: 'Power BI',
   ZABBIX_PLAYER: 'Zabbix',
   UPDOWN_BI_PLAYER: 'UpDown BI',
+  CAMERA_PLAYER: 'Câmeras (CFTV)',
 };
 export const PROFILE_KIND = {
   GRAFANA_PLAYER: ['grafana', 'other'],

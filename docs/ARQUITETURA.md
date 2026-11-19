@@ -52,6 +52,14 @@ se conecta a elas. Funciona com TVs em outras redes, atrás de NAT/firewall, sem
 Comandos, programação, tela, energia e volume chegam na resposta do heartbeat (30 s); em espera,
 o app Android consulta `GET /api/player/power` a cada minuto.
 
+## CFTV
+
+Câmeras/canais (`cameras`) guardam a senha criptografada (Fernet, chave derivada de
+`UDS_SECRET_KEY`; trocar a chave exige recadastrar as senhas). Para TVs `CAMERA_PLAYER`, a
+configuração leva as URLs RTSP; o app Android (Media3/ExoPlayer, RTP sobre TCP, buffer curto)
+desenha o mosaico nativo sobre o WebView, gira conforme a orientação, reconecta câmeras com falha e
+informa o status no heartbeat. O vídeo vai da câmera direto para a TV na rede local.
+
 ## Energia
 
 `services/power.py` calcula o estado desejado de cada TV: horário de funcionamento (faixas por dia
