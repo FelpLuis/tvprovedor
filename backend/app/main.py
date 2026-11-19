@@ -43,7 +43,9 @@ class SecurityHeaders(BaseHTTPMiddleware):
         elif not path.startswith(("/docs", "/redoc", "/openapi.json")):
             response.headers.setdefault("Content-Security-Policy", ADMIN_CSP)
             response.headers.setdefault("X-Frame-Options", "DENY")
-        if path.endswith(("sw.js", "index.html")) or path in ("/", "/player/"):
+        if not path.startswith("/api/") and "cache-control" not in response.headers:
+            # painel e player: o navegador sempre confere se há versão nova (ETag), para que
+            # uma atualização do servidor apareça sem precisar limpar o cache
             response.headers["Cache-Control"] = "no-cache"
         return response
 

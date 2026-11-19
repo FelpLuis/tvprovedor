@@ -40,3 +40,12 @@ def test_database_unavailable_returns_503(client):
     assert r.status_code == 503
     assert "Banco de dados indisponível" in r.json()["detail"]
     assert client.get("/api/health").status_code == 503
+
+
+def test_frontend_files_are_revalidated(client):
+    # após atualizar o servidor, o navegador precisa buscar os scripts novos do painel
+    for path in ("/", "/js/app.js", "/js/pages/cameras.js", "/css/app.css", "/player/", "/player/player.js"):
+        r = client.get(path)
+        assert r.status_code == 200, path
+        assert r.headers["cache-control"] == "no-cache", path
+        assert "etag" in r.headers, path

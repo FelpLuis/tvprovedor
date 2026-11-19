@@ -11,6 +11,11 @@ IDENTIFIER_PATTERN = r"^[A-Za-z0-9_\-]{1,32}$"
 RESOLUTION_PATTERN = r"^(auto|[0-9]{3,4}x[0-9]{3,4})$"
 
 
+def _empty_layout(v):
+    """Formulários podem enviar o mosaico vazio: trata como automático."""
+    return "auto" if v in ("", None) else v
+
+
 def _check_resolution(v: Optional[str]) -> Optional[str]:
     if v is None or v == "auto":
         return v
@@ -105,6 +110,7 @@ class ScreenBase(BaseModel):
     camera_layout: str = Field(default="auto", pattern=r"^(auto|1|4|9|16)$")
     camera_cycle_seconds: int = Field(default=0, ge=0, le=3600)
 
+    _layout = field_validator("camera_layout", mode="before")(_empty_layout)
     _res = field_validator("resolution")(_check_resolution)
 
 
@@ -133,6 +139,7 @@ class ScreenUpdate(BaseModel):
     camera_layout: Optional[str] = Field(default=None, pattern=r"^(auto|1|4|9|16)$")
     camera_cycle_seconds: Optional[int] = Field(default=None, ge=0, le=3600)
 
+    _layout = field_validator("camera_layout", mode="before")(_empty_layout)
     _res = field_validator("resolution")(_check_resolution)
 
 

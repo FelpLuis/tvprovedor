@@ -52,3 +52,15 @@ def test_operator_can_set_playlist_but_not_edit_screen(client, admin):
     assert r.status_code == 200 and r.json()["playlist"]["id"] == pl["id"]
     r = op.post("/api/screens/assign-playlist", json={"playlist_id": None, "screen_ids": [s["id"]]})
     assert r.status_code == 200 and r.json()[0]["playlist_id"] is None
+
+
+def test_empty_camera_layout_from_form_means_auto(client, admin):
+    # o formulário do painel pode enviar o campo vazio (regressão: impedia criar/ativar TVs)
+    r = admin.post("/api/screens", json={"identifier": "TV-L1", "name": "x", "camera_layout": "", "camera_ids": []})
+    assert r.status_code == 201, r.text
+    assert r.json()["camera_layout"] == "auto"
+    code = client.post("/api/player/activation-codes", json={}).json()
+    r = admin.post("/api/screens/activate", json={"code": code["code"], "screen": {
+        "identifier": "TV-L2", "name": "y", "camera_layout": "", "camera_cycle_seconds": 0}})
+    assert r.status_code == 200, r.text
+    assert admin.patch(f"/api/screens/{r.json()['id']}", json={"camera_layout": ""}).json()["camera_layout"] == "auto"
