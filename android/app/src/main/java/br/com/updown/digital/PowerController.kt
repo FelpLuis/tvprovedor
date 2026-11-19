@@ -39,7 +39,11 @@ object PowerController {
         return dpm.isAdminActive(ComponentName(ctx, PowerAdminReceiver::class.java))
     }
 
-    fun controlMode(ctx: Context) = if (hasDeviceAdmin(ctx)) "device_admin" else "tela_preta"
+    fun controlMode(ctx: Context) = when {
+        DeviceOwner.isOwner(ctx) -> "device_owner"
+        hasDeviceAdmin(ctx) -> "device_admin"
+        else -> "tela_preta"
+    }
 
     /** Entra em espera e agenda as verificações para religar. */
     fun standby(ctx: Context, nextOnMs: Long) {

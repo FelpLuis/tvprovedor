@@ -44,7 +44,7 @@ Perfis mínimos: **V** visualizador, **O** operador, **A** administrador.
 | POST | `/screens/{id}/revoke` | A | revoga o token do dispositivo |
 | GET | `/screens/{id}/heartbeats?limit` | V | histórico de comunicação |
 | GET | `/screens/{id}/commands` | V | últimos comandos |
-| POST | `/screens/{id}/commands` | O | `{command}`: `reload_config`, `refresh_content`, `restart_playback`, `reload_page`, `clear_cache`, `identify` |
+| POST | `/screens/{id}/commands` | O | `{command}`: `reload_config`, `refresh_content`, `restart_playback`, `reload_page`, `clear_cache`, `identify`, `update_app`, `app_setup`, `reboot`, `release_owner` |
 
 Campos de tela da TV (em `POST`/`PATCH /screens`):
 

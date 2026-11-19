@@ -96,6 +96,8 @@ class CommandType(str, Enum):
     IDENTIFY = "identify"  # padrão de teste com nome, resolução e orientação
     UPDATE_APP = "update_app"  # app Android: buscar e instalar a versão do servidor
     APP_SETUP = "app_setup"    # app Android: refazer o assistente de permissões na TV
+    REBOOT = "reboot"          # reiniciar o aparelho (modo proprietário do dispositivo)
+    RELEASE_OWNER = "release_owner"  # desfazer o modo proprietário (permite desinstalar o app)
 
 
 class CommandStatus(str, Enum):

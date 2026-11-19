@@ -40,6 +40,7 @@ passo em [INSTALACAO.md](INSTALACAO.md) e deve ser executada com autorização, 
 | Extra: ligar/desligar agora (TV e grupo), horário de funcionamento, volume | ✅ | `services/power.py`, `PowerController.kt`, migração `0004` |
 | Extra: instalação sem ADB (assistente de permissões no app) e atualização automática do app | ✅ compilado | `SetupAssistant.kt`, `UpdateManager.kt`, `/apk`, `/app/version.json` |
 | Extra: CFTV Intelbras (RTSP no app, mosaico, rodízio, cadastro de NVR) | ✅ compilado | `CameraWall.kt`, `api/cameras.py`, migração `0005` |
+| Extra: atualização silenciosa (proprietário do dispositivo), tela inicial fixa, reiniciar TV | ✅ compilado | `DeviceOwner.kt`, `instalar_tv.sh --proprietario` |
 
 ## Testes executados
 

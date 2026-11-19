@@ -89,7 +89,11 @@ def test_short_apk_url_and_version_manifest(client):
 
 def test_app_commands(client, admin):
     token, screen = activate_device(admin, client)
-    for c in ("update_app", "app_setup"):
+    for c in ("update_app", "app_setup", "reboot", "release_owner"):
         assert admin.post(f"/api/screens/{screen['id']}/commands", json={"command": c}).status_code == 201
     cmds = [c["command"] for c in client.post("/api/player/heartbeat", json={}, headers=dev(token)).json()["commands"]]
-    assert cmds == ["update_app", "app_setup"]
+    assert cmds == ["update_app", "app_setup", "reboot", "release_owner"]
+    client.post("/api/player/heartbeat", headers=dev(token), json={"display": {
+        "silent_update": "silenciosa (proprietário do dispositivo)", "power_control": "device_owner"}})
+    info = admin.get(f"/api/screens/{screen['id']}").json()["display_info"]
+    assert info["silent_update"].startswith("silenciosa") and info["power_control"] == "device_owner"
