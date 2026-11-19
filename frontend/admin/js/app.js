@@ -7,6 +7,7 @@ import * as groups from './pages/groups.js';
 import * as mediaPage from './pages/media.js';
 import * as playlists from './pages/playlists.js';
 import * as dashboards from './pages/dashboards.js';
+import * as cameras from './pages/cameras.js';
 import * as users from './pages/users.js';
 import * as logs from './pages/logs.js';
 import * as settings from './pages/settings.js';
@@ -18,6 +19,7 @@ const ROUTES = [
   { path: 'midias', label: 'Mídias', icon: 'media', page: mediaPage },
   { path: 'playlists', label: 'Playlists', icon: 'playlist', page: playlists },
   { path: 'dashboards', label: 'Dashboards BI', icon: 'chart', page: dashboards },
+  { path: 'cameras', label: 'Câmeras', icon: 'video', page: cameras },
   { path: 'usuarios', label: 'Usuários', icon: 'users', page: users, role: 'admin' },
   { path: 'logs', label: 'Logs', icon: 'log', page: logs, role: 'operator' },
   { path: 'configuracoes', label: 'Configurações', icon: 'settings', page: settings },

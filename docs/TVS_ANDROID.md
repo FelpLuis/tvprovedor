@@ -132,6 +132,35 @@ Na própria TV:
    TV já cadastrada** (útil para trocar o aparelho mantendo a configuração).
 4. Em até 5 segundos a TV recebe o token e começa a baixar e reproduzir o conteúdo.
 
+## CFTV (câmeras Intelbras)
+
+TVs com o perfil **Câmeras (CFTV)** mostram um mosaico de câmeras ao vivo. O **app UpDown Digital**
+reproduz as câmeras por **RTSP direto da rede local**: o vídeo vai da câmera/NVR para a TV, sem passar
+pelo servidor nem pela internet. (O navegador não reproduz RTSP; essas TVs precisam do app.)
+
+**Requisito:** a TV precisa alcançar a câmera ou o NVR/DVR na rede (mesma rede ou rotas entre elas).
+O gerenciador não precisa acessar as câmeras.
+
+1. Em **Câmeras**, cadastre cada câmera, ou use **Cadastrar NVR/DVR** para criar todos os canais
+   de uma vez (IP do NVR, usuário, senha, canais). Depois renomeie os canais (ex.: "Portaria").
+   - Endereço gerado (padrão Intelbras/Dahua):
+     `rtsp://usuário:senha@IP:554/cam/realmonitor?channel=N&subtype=1`
+   - **Fluxo extra (substream)** é o recomendado para mosaicos: leve e estável. Use o
+     **principal** para uma câmera em tela cheia.
+   - Outras marcas: escolha "Outra marca (RTSP genérico)" e informe o caminho RTSP.
+   - Crie no NVR um **usuário só de visualização** para as TVs. A senha fica criptografada no
+     servidor, nunca é exibida no painel e só é entregue às TVs ativadas.
+2. Em **TVs**, crie ou edite a TV com o perfil **Câmeras (CFTV)**, marque as câmeras (na ordem
+   desejada), escolha o **mosaico** (1, 2×2, 3×3, 4×4 ou automático) e, se houver mais câmeras que
+   espaços, o **rodízio** de páginas em segundos. Orientação retrato, margem de segurança, energia e
+   horário de funcionamento valem também para as TVs de CFTV.
+3. Em **TVs → detalhes**, a linha **CFTV** mostra o que a TV informa, ex.: `3/4 ao vivo ·
+   Portaria: falha (usuário/senha)`. Câmeras com falha reconectam sozinhas a cada 5 segundos.
+
+Dicas para a qualidade: no NVR, configure o substream em H.264, 704×480 ou 1280×720, 10–15 fps e
+512–1024 kbps. Em um mosaico 3×3 com substream, a rede local precisa de ~5–10 Mbps por TV; prefira
+cabo. Se a TV mostrar "codec não suportado", mude a câmera de H.265 para H.264.
+
 ## Ligar, desligar e volume
 
 Em **TVs → detalhes → Energia e som**:

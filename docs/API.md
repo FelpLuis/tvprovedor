@@ -124,6 +124,20 @@ Para imagens, `duration_seconds` é o tempo de exibição; para vídeos, um limi
 `options`: `kiosk` (bool ou `"tv"`), `theme`, `query` (parâmetros extras), `load_timeout_seconds`,
 `full_reload_hours`, `hide_panes` (Power BI).
 
+## Câmeras (CFTV)
+
+| Método | Rota | Perfil | Descrição |
+|---|---|---|---|
+| GET | `/cameras` | V | lista (sem senha; `rtsp_preview` com `***`) |
+| POST | `/cameras` | A | `{name, location, brand: intelbras\|rtsp, host, port, username, password, channel, stream: sub\|main, rtsp_path, is_active, notes}` |
+| PATCH | `/cameras/{id}` | A | parcial; `password` omitido mantém, `""` remove |
+| DELETE | `/cameras/{id}` | A | exclui e retira dos mosaicos |
+
+TV com `profile: CAMERA_PLAYER`: `camera_ids` (ordem do mosaico), `camera_layout`
+(`auto`, `1`, `4`, `9`, `16`) e `camera_cycle_seconds`. A configuração do player traz
+`mode: "cameras"` e `cameras: {layout, slots, cycle_seconds, items: [{id, name, url}]}` com a URL RTSP
+completa (somente para a TV autenticada).
+
 ## Sistema
 
 | Método | Rota | Perfil | Descrição |

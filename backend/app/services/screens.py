@@ -40,6 +40,9 @@ def effective_content_label(screen: Screen) -> Optional[str]:
             return None
         origin = "" if screen.playlist is not None else " (grupo)"
         return f"Playlist: {pl.name}{origin}"
+    if screen.profile == ScreenProfile.CAMERA_PLAYER.value:
+        n = len(screen.camera_ids or [])
+        return f"Câmeras: {n}" if n else None
     if screen.dashboard is not None:
         return f"Dashboard: {screen.dashboard.name}"
     return None
@@ -155,6 +158,7 @@ def player_config(screen: Screen) -> Dict[str, Any]:
         "mode": "idle",
         "playlist": None,
         "dashboard": None,
+        "cameras": None,
     }
     if screen.status == ScreenStatus.DISABLED.value:
         cfg["mode"] = "disabled"
@@ -163,6 +167,16 @@ def player_config(screen: Screen) -> Dict[str, Any]:
         if pl is not None and pl.is_active and pl.items:
             cfg["mode"] = "media"
             cfg["playlist"] = _playlist_payload(pl)
+    elif screen.profile == ScreenProfile.CAMERA_PLAYER.value:
+        from sqlalchemy.orm import object_session
+
+        from app.services.cameras import cameras_payload
+
+        session = object_session(screen)
+        cams = cameras_payload(session, screen) if session is not None else None
+        if cams:
+            cfg["mode"] = "cameras"
+            cfg["cameras"] = cams
     else:
         d = screen.dashboard
         if d is not None and d.is_active:

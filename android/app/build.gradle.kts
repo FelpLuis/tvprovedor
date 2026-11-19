@@ -15,8 +15,8 @@ android {
         applicationId = "br.com.updown.digital"
         minSdk = 21          // Android 5.0: cobre TVs e TV boxes antigas
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "1.3.0"
         buildConfigField("String", "PLAYER_URL", "\"$playerUrl\"")
     }
 
@@ -49,10 +49,20 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 
+    packaging {
+        resources.excludes += setOf("META-INF/*.kotlin_module", "META-INF/AL2.0", "META-INF/LGPL2.1")
+    }
+
     lint {
         abortOnError = false
         checkReleaseBuilds = false
     }
+}
+
+dependencies {
+    // CFTV: reprodução RTSP das câmeras/NVR Intelbras direto da rede local
+    implementation("androidx.media3:media3-exoplayer:1.4.1")
+    implementation("androidx.media3:media3-exoplayer-rtsp:1.4.1")
 }
 
 // Publica o APK para o servidor: frontend/app/updown-digital.apk + version.json

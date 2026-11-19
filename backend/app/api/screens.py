@@ -11,6 +11,7 @@ from app.core.permissions import require_admin, require_operator, require_viewer
 from app.core.security import normalize_activation_code
 from app.database import get_db
 from app.models import (
+    Camera,
     Dashboard,
     Playlist,
     Screen,
@@ -44,6 +45,14 @@ router = APIRouter(prefix="/screens", tags=["screens"])
 COMMAND_TTL = timedelta(minutes=10)
 
 
+def _validate_cameras(db: Session, ids) -> None:
+    if ids:
+        found = set(db.scalars(select(Camera.id).where(Camera.id.in_(ids))).all())
+        missing = sorted(set(ids) - found)
+        if missing:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Câmeras inexistentes: {missing}")
+
+
 def _validate_refs(db: Session, profile: ScreenProfile, group_id, playlist_id, dashboard_id) -> None:
     if group_id is not None:
         get_or_404(db, ScreenGroup, group_id, "Grupo")
@@ -70,6 +79,7 @@ def _unique_identifier(db: Session, identifier: str, exclude_id: Optional[int] =
 def _new_screen(db: Session, data: ScreenCreate) -> Screen:
     _unique_identifier(db, data.identifier)
     _validate_refs(db, data.profile, data.group_id, data.playlist_id, data.dashboard_id)
+    _validate_cameras(db, data.camera_ids)
     values = data.model_dump()
     values["profile"] = data.profile.value
     values["status"] = data.status.value
@@ -79,6 +89,8 @@ def _new_screen(db: Session, data: ScreenCreate) -> Screen:
         values["dashboard_id"] = None
     else:
         values["playlist_id"] = None
+    if data.profile == ScreenProfile.CAMERA_PLAYER:
+        values["dashboard_id"] = None
     screen = Screen(uid=str(uuid.uuid4()), **values)
     db.add(screen)
     db.flush()
@@ -182,14 +194,18 @@ def update_screen(screen_id: int, data: ScreenUpdate, request: Request, db: Sess
         db, profile,
         changes.get("group_id", screen.group_id),
         changes.get("playlist_id", screen.playlist_id),
-        changes.get("dashboard_id", screen.dashboard_id if profile != ScreenProfile.MEDIA_PLAYER else None),
+        changes.get("dashboard_id", screen.dashboard_id if profile.is_dashboard else None),
     )
+    if "camera_ids" in changes:
+        _validate_cameras(db, changes["camera_ids"])
     for k, v in changes.items():
         setattr(screen, k, v.value if hasattr(v, "value") else v)
     if profile == ScreenProfile.MEDIA_PLAYER:
         screen.dashboard_id = None
     else:
         screen.playlist_id = None
+    if not profile.is_dashboard:
+        screen.dashboard_id = None
     audit.record(db, "screen.updated", request=request, user=user, entity_type="screen", entity_id=screen.id,
                  details={k: (v.value if hasattr(v, "value") else v) for k, v in changes.items()})
     db.commit()

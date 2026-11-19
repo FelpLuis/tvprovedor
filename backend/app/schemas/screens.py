@@ -101,6 +101,9 @@ class ScreenBase(BaseModel):
     screen_inches: Optional[int] = Field(default=None, ge=7, le=150)
     safe_margin_percent: int = Field(default=0, ge=0, le=10)
     fullscreen: bool = True
+    camera_ids: List[int] = Field(default_factory=list, max_length=64)
+    camera_layout: str = Field(default="auto", pattern=r"^(auto|1|4|9|16)$")
+    camera_cycle_seconds: int = Field(default=0, ge=0, le=3600)
 
     _res = field_validator("resolution")(_check_resolution)
 
@@ -126,6 +129,9 @@ class ScreenUpdate(BaseModel):
     screen_inches: Optional[int] = Field(default=None, ge=7, le=150)
     safe_margin_percent: Optional[int] = Field(default=None, ge=0, le=10)
     fullscreen: Optional[bool] = None
+    camera_ids: Optional[List[int]] = Field(default=None, max_length=64)
+    camera_layout: Optional[str] = Field(default=None, pattern=r"^(auto|1|4|9|16)$")
+    camera_cycle_seconds: Optional[int] = Field(default=None, ge=0, le=3600)
 
     _res = field_validator("resolution")(_check_resolution)
 
@@ -155,6 +161,9 @@ class ScreenOut(ORMModel):
     power_schedule: Optional[Dict[str, Any]]
     power_override: Optional[str]
     volume: Optional[int]
+    camera_ids: Optional[List[int]]
+    camera_layout: str
+    camera_cycle_seconds: int
     power: Optional[Dict[str, Any]] = None
     display_info: Optional[Dict[str, Any]]
     config_hash: Optional[str] = None

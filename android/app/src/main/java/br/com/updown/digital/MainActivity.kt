@@ -51,6 +51,7 @@ class MainActivity : Activity() {
     private val backPresses = ArrayDeque<Long>()
 
     lateinit var setup: SetupAssistant
+    lateinit var cameraWall: CameraWall
 
     /** Verificação de atualização: 2 min após abrir e depois a cada 6 h. */
     private val updateCheck = object : Runnable {
@@ -69,6 +70,7 @@ class MainActivity : Activity() {
         container = FrameLayout(this).apply { setBackgroundColor(Color.rgb(20, 0, 88)) }
         setContentView(container)
         setup = SetupAssistant(this)
+        cameraWall = CameraWall(this, container)
         createWebView()
         applyFullscreen()
         handler.postDelayed(watchdog, WATCHDOG_INTERVAL_MS)
@@ -284,6 +286,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        cameraWall.hide()
         webView?.destroy()
         webView = null
         super.onDestroy()

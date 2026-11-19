@@ -282,6 +282,8 @@
     if (setupStatus) { r.setup = String(setupStatus); }
     var upd = nativeCall('getUpdateStatus');
     if (upd) { r.update = String(upd); }
+    var camStatus = nativeCall('getCameraStatus');
+    if (camStatus) { r.cameras = String(camStatus); }
     return r;
   }
 
@@ -598,9 +600,32 @@
   });
   var fullReloadTimer = null;
 
+  // ---------------------------------------------------------------- CFTV (câmeras)
+
+  /** As câmeras (RTSP) são reproduzidas pelo app, direto da rede local, por cima desta página. */
+  function startCameras(cfg) {
+    var cams = cfg.cameras;
+    state.currentContent = 'Câmeras: ' + cams.items.map(function (c) { return c.name; }).join(', ').slice(0, 200);
+    if (NATIVE && typeof NATIVE.showCameras === 'function') {
+      var d = displaySettings();
+      var payload = {
+        layout: cams.layout, slots: cams.slots, cycle_seconds: cams.cycle_seconds, items: cams.items,
+        rotation: d.rotation || 0, safe_margin_percent: d.safe_margin_percent || 0
+      };
+      show('stage');
+      nativeCall('showCameras', JSON.stringify(payload));
+      state.playbackState = 'playing';
+    } else {
+      state.playbackState = 'error';
+      setError('CFTV requer o app UpDown Digital (o navegador não reproduz RTSP)');
+      showMessage('Câmeras (CFTV)', 'Esta TV precisa do app UpDown Digital para exibir as câmeras.');
+    }
+  }
+
   // ---------------------------------------------------------------- configuração
 
   function stopAll() {
+    nativeCall('hideCameras');
     stopMedia();
     dashboard.stop();
     clearTimeout(fullReloadTimer);
@@ -636,6 +661,8 @@
       var hours = cfg.dashboard.full_reload_hours || 12;
       // recarga completa periódica: evita vazamentos de memória de páginas de BI
       fullReloadTimer = setTimeout(function () { if (state.online) { location.reload(); } }, hours * 3600 * 1000);
+    } else if (cfg.mode === 'cameras') {
+      startCameras(cfg);
     } else if (cfg.mode === 'disabled') {
       state.playbackState = 'idle';
       showMessage('TV desativada', cfg.screen.name);

@@ -64,6 +64,11 @@ class Screen(Base):
     power_override_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime, nullable=True)
     volume: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 0-100; None = não controlar
 
+    # CFTV (perfil CAMERA_PLAYER)
+    camera_ids: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)  # ordem de exibição
+    camera_layout: Mapped[str] = mapped_column(String(8), default="auto", server_default="auto")  # auto|1|4|9|16
+    camera_cycle_seconds: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # rodízio de páginas
+
     # Autenticação do dispositivo (hash do token, nunca o token em si)
     token_hash: Mapped[Optional[str]] = mapped_column(String(64), unique=True, nullable=True)
     token_expires_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime, nullable=True)
