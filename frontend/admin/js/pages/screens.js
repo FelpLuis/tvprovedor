@@ -2,7 +2,7 @@ import { get, post, patch, put, del } from '../api.js';
 import {
   h, clear, btn, modal, formModal, confirmDialog, toast, toastError, buildForm,
   fmtAgo, fmtDate, fmtBytes, statusBadge, emptyState, debounce,
-  PROFILES, PROFILE_KIND, COMMANDS, PLAYBACK,
+  PROFILES, PROFILE_KIND, COMMANDS, PLAYBACK, ORIENTATIONS, RESOLUTIONS, suggestResolution,
 } from '../ui.js';
 import { session } from '../session.js';
 
@@ -34,7 +34,28 @@ function screenFields(refs, values = {}) {
       help: 'Somente dashboards. Vazio = usar o do dashboard.' },
     { name: 'status', label: 'Status', type: 'select', options: [['active', 'Ativa'], ['disabled', 'Desativada']] },
     { name: 'description', label: 'Descrição', type: 'textarea', full: true },
+    { type: 'section', label: 'Tela' },
+    { name: 'orientation', label: 'Orientação', type: 'select', options: Object.entries(ORIENTATIONS),
+      help: 'Retrato gira o conteúdo para TVs instaladas na vertical.' },
+    { name: 'resolution_preset', label: 'Resolução de exibição', type: 'select', options: RESOLUTIONS,
+      onchange: (v, inputs) => updateDisplay(inputs),
+      help: 'O conteúdo é montado nesta resolução e ajustado à tela. Resoluções menores deixam tudo maior.' },
+    { name: 'res_w', label: 'Largura (px)', type: 'number', min: 320, max: 7680 },
+    { name: 'res_h', label: 'Altura (px)', type: 'number', min: 240, max: 4320 },
+    { name: 'screen_inches', label: 'Tamanho da TV (polegadas)', type: 'number', min: 7, max: 150,
+      onchange: (v, inputs) => updateDisplay(inputs), help: ' ' },
+    { name: 'safe_margin_percent', label: 'Margem de segurança (%)', type: 'number', min: 0, max: 10, default: 0,
+      help: 'Use 2% a 5% se a TV cortar as bordas (overscan). Confira com o comando "Identificar tela".' },
+    { name: 'fullscreen', label: 'Tela cheia (modo quiosque)', type: 'checkbox', default: true, full: true,
+      help: 'No app UpDown Digital a tela cheia é aplicada automaticamente. No navegador, é preciso pressionar OK uma vez.' },
   ];
+  function updateDisplay(inputs) {
+    const custom = inputs.resolution_preset.el.value === 'custom';
+    inputs.res_w.el.closest('.field').classList.toggle('hidden', !custom);
+    inputs.res_h.el.closest('.field').classList.toggle('hidden', !custom);
+    const help = inputs.screen_inches.el.closest('.field').querySelector('.help');
+    help.textContent = suggestResolution(Number(inputs.screen_inches.el.value)) || 'Para inventário e sugestão de resolução.';
+  }
   function updateProfile(profile, inputs) {
     const isMedia = profile === 'MEDIA_PLAYER';
     inputs.playlist_id.el.closest('.field').classList.toggle('hidden', !isMedia);
@@ -45,19 +66,40 @@ function screenFields(refs, values = {}) {
     clear(sel, dashOpts(profile).map(([v, l]) => h('option', { value: v === null ? '' : v }, l)));
     sel.value = [...sel.options].some((o) => o.value === cur) ? cur : '';
   }
-  return { fields, updateProfile };
+  return { fields, updateProfile, updateDisplay };
+}
+
+/** Converte o valor salvo ("auto" | "LxA") nos campos do formulário. */
+function displayValues(screen) {
+  const res = (screen && screen.resolution) || 'auto';
+  const known = RESOLUTIONS.some(([v]) => v === res);
+  const out = { orientation: (screen && screen.orientation) || 'landscape', resolution_preset: known ? res : 'custom',
+    fullscreen: screen ? screen.fullscreen !== false : true };
+  if (!known) {
+    const [w, hgt] = res.split('x').map(Number);
+    out.res_w = w; out.res_h = hgt;
+  }
+  return out;
 }
 
 function cleanScreenValues(v) {
   const out = { ...v };
+  if (out.resolution_preset === 'custom') {
+    if (!out.res_w || !out.res_h) throw new Error('Informe largura e altura da resolução personalizada.');
+    out.resolution = `${Math.max(out.res_w, out.res_h)}x${Math.min(out.res_w, out.res_h)}`;
+  } else {
+    out.resolution = out.resolution_preset || 'auto';
+  }
+  if (out.safe_margin_percent === null || out.safe_margin_percent === undefined) out.safe_margin_percent = 0;
+  delete out.resolution_preset; delete out.res_w; delete out.res_h;
   if (out.profile === 'MEDIA_PLAYER') { out.dashboard_id = null; out.refresh_seconds = null; } else { out.playlist_id = null; }
   return out;
 }
 
 export async function openScreenForm(screen, onDone) {
   const refs = await loadRefs();
-  const values = screen || { profile: 'MEDIA_PLAYER', status: 'active' };
-  const { fields, updateProfile } = screenFields(refs, values);
+  const values = { ...(screen || { profile: 'MEDIA_PLAYER', status: 'active' }), ...displayValues(screen) };
+  const { fields, updateProfile, updateDisplay } = screenFields(refs, values);
   const m = formModal({
     title: screen ? `Editar ${screen.identifier}` : 'Nova TV',
     fields, values, wide: true,
@@ -69,6 +111,7 @@ export async function openScreenForm(screen, onDone) {
     },
   });
   updateProfile(values.profile, m.form.inputs);
+  updateDisplay(m.form.inputs);
 }
 
 export async function openActivation(onDone) {
@@ -80,9 +123,11 @@ export async function openActivation(onDone) {
   const existingSel = h('select', null, screens.map((s) => h('option', { value: s.id },
     `${s.identifier} — ${s.name}${s.activated ? ' (substituir dispositivo)' : ''}`)));
   const existingWrap = h('div', { class: 'field hidden' }, h('label', null, 'TV'), existingSel);
-  const { fields, updateProfile } = screenFields(refs, { profile: 'MEDIA_PLAYER' });
-  const form = buildForm(fields.filter((f) => f.name !== 'status'), { profile: 'MEDIA_PLAYER' });
+  const initial = { profile: 'MEDIA_PLAYER', ...displayValues(null) };
+  const { fields, updateProfile, updateDisplay } = screenFields(refs, initial);
+  const form = buildForm(fields.filter((f) => f.name !== 'status'), initial);
   updateProfile('MEDIA_PLAYER', form.inputs);
+  updateDisplay(form.inputs);
   const newWrap = h('div', null, form.el);
   modeSel.addEventListener('change', () => {
     newWrap.classList.toggle('hidden', modeSel.value !== 'new');
@@ -109,13 +154,13 @@ export async function openActivation(onDone) {
       (close) => btn('Ativar', async () => {
         err.classList.add('hidden');
         const body = { code: codeInput.value.trim() };
-        if (modeSel.value === 'existing') body.screen_id = Number(existingSel.value);
-        else {
-          const v = cleanScreenValues(form.values());
-          v.status = 'active';
-          body.screen = v;
-        }
         try {
+          if (modeSel.value === 'existing') body.screen_id = Number(existingSel.value);
+          else {
+            const v = cleanScreenValues(form.values());
+            v.status = 'active';
+            body.screen = v;
+          }
           const s = await post('/screens/activate', body);
           toast(`${s.identifier} ativada. A TV iniciará a programação em instantes.`, 'success');
           close();
@@ -189,6 +234,21 @@ export async function openScreenDetail(id, onChange) {
   }, 15000);
 }
 
+function displayConfigured(s) {
+  const res = s.resolution === 'auto' ? 'resolução automática' : `${s.resolution.replace('x', '×')}`;
+  return [ORIENTATIONS[s.orientation] || s.orientation, res, s.screen_inches ? `${s.screen_inches}"` : null,
+    s.safe_margin_percent ? `margem ${s.safe_margin_percent}%` : null, s.fullscreen === false ? 'sem tela cheia' : 'tela cheia']
+    .filter(Boolean).join(' · ');
+}
+
+function displayDetected(d) {
+  if (!d || !d.viewport) return null;
+  const phys = d.dpr ? ` (≈ ${Math.round(d.viewport[0] * d.dpr)}×${Math.round(d.viewport[1] * d.dpr)} px físicos)` : '';
+  const stage = d.logical ? ` · palco ${d.logical[0]}×${d.logical[1]}, escala ${d.scale}` : '';
+  const client = d.client === 'app' ? `app ${d.app || ''} · ${d.device || ''} · Android ${d.android || '?'} · ` : (d.client ? 'navegador · ' : '');
+  return `${client}${d.viewport[0]}×${d.viewport[1]} px · DPR ${d.dpr}${phys} · aparelho em ${d.device_orientation || '?'}${stage}`;
+}
+
 function infoPane(s) {
   const st = s.storage_info || {};
   const kv = (k, v) => [h('dt', null, k), h('dd', null, v === null || v === undefined || v === '' ? '—' : v)];
@@ -201,6 +261,8 @@ function infoPane(s) {
     kv('Último contato', s.last_seen_at ? `${fmtAgo(s.last_seen_at)} (${fmtDate(s.last_seen_at)})` : 'nunca'),
     kv('Versão do player', s.player_version), kv('Conexão', s.connection_state),
     kv('IP', s.last_ip), kv('Navegador', s.user_agent),
+    kv('Tela configurada', displayConfigured(s)),
+    kv('Tela detectada', displayDetected(s.display_info)),
     kv('Armazenamento local', st.usage !== undefined ? `${fmtBytes(st.usage)} de ${fmtBytes(st.quota)}${st.downloading ? ' · baixando ' + st.downloading : ''}` : null),
     kv('Último erro', s.last_error ? `${s.last_error} (${fmtDate(s.last_error_at)})` : null),
     kv('Ativada em', fmtDate(s.activated_at)), kv('Token expira em', fmtDate(s.token_expires_at)),
@@ -269,6 +331,35 @@ async function historyPane(s) {
       h('td', { class: 'error-text small' }, r.error || ''))))));
 }
 
+/** Instruções do app Android TV: download do APK e instalação pela rede, sem usar o navegador da TV. */
+export function openAppInfo() {
+  const apk = `${location.origin}/app/updown-digital.apk`;
+  const code = (txt) => h('pre', { class: 'mono small', style: 'margin:0; padding:10px; background:var(--bg); border:1px solid var(--border); border-radius:8px; white-space:pre-wrap; word-break:break-all' }, txt);
+  modal({
+    title: 'App Android TV — UpDown Digital', wide: true,
+    body: h('div', { class: 'stack' },
+      h('p', { style: 'margin:0' }, 'O app abre sozinho o player (sempre a mesma URL), em tela cheia, ao ligar a TV. ',
+        'Não é preciso abrir o navegador nem digitar endereço. Depois de instalado, a TV mostra o código de ativação: ',
+        'ative em ', h('b', null, 'Ativar TV'), ' e defina orientação, resolução e tela cheia aqui no gerenciador.'),
+      h('div', null, h('a', { class: 'btn primary', href: apk, download: 'updown-digital.apk' }, 'Baixar APK'),
+        h('span', { class: 'muted small', style: 'margin-left:10px' }, apk)),
+      h('h3', { style: 'margin:8px 0 0' }, '1. Instalação pela rede (recomendada)'),
+      h('p', { class: 'small', style: 'margin:0' }, 'Na TV: Configurações → Preferências do dispositivo → Sobre → clique 7 vezes em "Build" para liberar as opções do desenvolvedor; ',
+        'depois ative "Depuração USB/ADB" e "Depuração pela rede" e anote o IP da TV. Em um computador com ADB (ou no próprio servidor):'),
+      code(`scripts/instalar_tv.sh IP_DA_TV --quiosque`),
+      h('p', { class: 'small muted', style: 'margin:0' }, 'O script instala o app, libera a abertura automática ao ligar, desativa o protetor de tela e abre o player. ',
+        'Com --quiosque o app vira a tela inicial da TV. Sem o script, os comandos equivalentes são:'),
+      code(`adb connect IP_DA_TV:5555
+adb install -r updown-digital.apk
+adb shell appops set br.com.updown.digital SYSTEM_ALERT_WINDOW allow
+adb shell am start -n br.com.updown.digital/.MainActivity`),
+      h('h3', { style: 'margin:8px 0 0' }, '2. Pen drive'),
+      h('p', { class: 'small', style: 'margin:0' }, 'Copie o APK para um pen drive e abra-o na TV com um gerenciador de arquivos (permita "fontes desconhecidas"). ',
+        'Depois abra o app UpDown Digital uma vez.'),
+      h('div', { class: 'alert small' }, 'Para sair do app na manutenção, pressione VOLTAR 5 vezes seguidas.')),
+  });
+}
+
 export async function render(root) {
   const groups = await get('/groups');
   const q = h('input', { type: 'search', placeholder: 'Buscar nome, identificação, local…' });
@@ -279,7 +370,8 @@ export async function render(root) {
   const tableWrap = h('div');
 
   const actions = session.can('admin')
-    ? [btn('Ativar TV', () => openActivation(load).catch(toastError), { cls: 'primary', ico: 'key' }),
+    ? [btn('App Android TV', () => openAppInfo(), { ico: 'tv' }),
+      btn('Ativar TV', () => openActivation(load).catch(toastError), { cls: 'primary', ico: 'key' }),
       btn('Nova TV', () => openScreenForm(null, load).catch(toastError), { ico: 'plus' })]
     : [];
   clear(root,
@@ -301,7 +393,7 @@ export async function render(root) {
       h('thead', null, h('tr', null, ['TV', 'Nome', 'Grupo', 'Perfil', 'Status', 'Conteúdo', 'Último contato', 'Player'].map((t) => h('th', null, t)))),
       h('tbody', null, list.map((s) => h('tr', { class: `clickable ${s.activated && !s.online ? 'offline' : ''}`, onclick: () => openScreenDetail(s.id, load).catch(toastError) },
         h('td', { class: 'mono nowrap' }, s.identifier),
-        h('td', null, h('div', null, s.name), h('div', { class: 'muted small' }, [s.location, s.department].filter(Boolean).join(' · '))),
+        h('td', null, h('div', null, s.name), h('div', { class: 'muted small' }, [s.location, s.department, s.orientation !== 'landscape' ? ORIENTATIONS[s.orientation].split(' (')[0] : null, s.resolution !== 'auto' ? s.resolution.replace('x', '×') : null].filter(Boolean).join(' · '))),
         h('td', null, s.group ? s.group.name : '—'),
         h('td', null, PROFILES[s.profile]),
         h('td', null, statusBadge(s)),

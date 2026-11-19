@@ -1,8 +1,12 @@
+import mimetypes
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
+import logging
+
+from fastapi.responses import JSONResponse, RedirectResponse
+from sqlalchemy.exc import DBAPIError, OperationalError
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -10,6 +14,8 @@ from app.api import auth, dashboards, groups, media, player, playlists, screens,
 from app.api.system import APP_VERSION
 from app.core.config import get_settings
 from app.services.media import ensure_storage_dirs
+
+log = logging.getLogger("updown_digital")
 
 ADMIN_CSP = (
     "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; "
@@ -65,6 +71,17 @@ def create_app() -> FastAPI:
     for r in (auth, users, groups, screens, media, playlists, dashboards, player, system):
         app.include_router(r.router, prefix="/api")
 
+    @app.exception_handler(OperationalError)
+    async def database_unavailable(request: Request, exc: DBAPIError):
+        # falha de conexão/autenticação com o PostgreSQL: mensagem clara em vez de 500 genérico
+        reason = str(getattr(exc, "orig", exc)).strip().splitlines()[-1][:300]
+        log.error("Banco de dados indisponível em %s %s: %s", request.method, request.url.path, reason)
+        return JSONResponse(
+            {"detail": "Banco de dados indisponível. Verifique o PostgreSQL e o UDS_DATABASE_URL do .env "
+                       "(detalhes: journalctl -u updown-digital)."},
+            status_code=503,
+        )
+
     frontend: Path = s.frontend_dir
 
     @app.get("/player", include_in_schema=False)
@@ -72,6 +89,10 @@ def create_app() -> FastAPI:
         return RedirectResponse("/player/")
 
     app.mount("/player", StaticFiles(directory=frontend / "player", html=True), name="player")
+    # APK do app Android TV, baixado pelo instalador/TV (não contém segredos)
+    mimetypes.add_type("application/vnd.android.package-archive", ".apk")
+    if (frontend / "app").is_dir():
+        app.mount("/app", StaticFiles(directory=frontend / "app"), name="android-app")
     app.mount("/", StaticFiles(directory=frontend / "admin", html=True), name="admin")
     return app
 

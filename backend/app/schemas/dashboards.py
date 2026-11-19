@@ -16,6 +16,9 @@ def _validate_url(v: Optional[str]) -> Optional[str]:
     v = v.strip()
     if not (v.startswith("https://") or v.startswith("http://") or v.startswith("/")):
         raise ValueError("A URL deve começar com https://, http:// ou / (rota interna)")
+    if v.startswith(("//", "/\\")) or any(c in v for c in "\r\n\t "):
+        # "//site" seria interpretado pelo navegador como outro domínio
+        raise ValueError("URL inválida: use https://endereço completo ou uma rota interna como /bi/...")
     lower = v.lower()
     for p in FORBIDDEN_URL_PARAMS:
         if f"{p}=" in lower:

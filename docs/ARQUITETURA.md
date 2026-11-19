@@ -32,7 +32,7 @@ dashboards ◄── screens.dashboard_id     └── screens.playlist_id │
 | Tabela | Conteúdo principal |
 |---|---|
 | `users` | usuário, e-mail, hash Argon2 da senha, perfil (`admin`/`operator`/`viewer`), `session_version` |
-| `screens` | identificação única (`TV-01`), nome, local, setor, grupo, **perfil fixo**, playlist ou dashboard, hash do token do dispositivo, último estado reportado |
+| `screens` | identificação única (`TV-01`), nome, local, setor, grupo, **perfil fixo**, playlist ou dashboard, orientação, resolução, polegadas, margem de segurança, hash do token do dispositivo, último estado e tela detectada |
 | `screen_groups` | grupos por setor e playlist padrão |
 | `screen_activation_codes` | código de 6 caracteres, hash do segredo de pareamento, validade, uso |
 | `screen_heartbeats` | histórico: volta de offline, mudança de estado, erro novo e um registro periódico a cada 10 min |
@@ -88,6 +88,22 @@ precisar de contadores de versão espalhados pelo código.
 **Decisão:** em vez de WebSocket, a primeira versão usa o heartbeat (até 30 s de atraso). Isso
 funciona melhor com quedas de conexão e navegadores de TV, e não exige manter conexões abertas
 no Caddy. Um canal WebSocket pode ser somado depois para comandos instantâneos.
+
+## Disposição da tela
+
+Todo o conteúdo do player fica num "palco lógico" (`#display`). A partir da configuração da TV
+(`orientation`, `resolution`, `safe_margin_percent`) e da área real do navegador, o player calcula:
+
+- **rotação** 0/90/180/270°; em 90/270 o palco fica em pé e a largura útil passa a ser a altura física;
+- **tamanho do palco**: a resolução fixa configurada (em retrato, invertida) ou, em *automática*,
+  a área disponível;
+- **escala** `min(área útil ÷ palco)`, para caber inteiro na tela descontando a margem de segurança.
+
+As unidades de tela do CSS do player usam variáveis (`--vmin`, `--vw`) definidas sobre o palco, não
+sobre a janela; assim textos e o código de ativação ficam proporcionais também em retrato. O
+recálculo acontece ao aplicar uma configuração e em `resize`/`orientationchange`. O player envia no
+heartbeat a resolução detectada (`display_info`) e o comando `identify` exibe um padrão de teste
+para conferir orientação e *overscan* no local.
 
 ## Mídias
 

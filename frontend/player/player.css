@@ -1,4 +1,7 @@
 * { box-sizing: border-box; }
+/* Unidades do palco lógico (definidas pelo player.js conforme orientação/resolução).
+   --vmin acompanha o menor lado da tela, para que textos caibam também em retrato. */
+:root { --vmin: 1vmin; --vw: 1vw; }
 html, body {
   margin: 0; width: 100%; height: 100%; overflow: hidden;
   background: #000; color: #f4f3ff; cursor: none;
@@ -6,6 +9,11 @@ html, body {
   -webkit-user-select: none; user-select: none;
 }
 .hidden { display: none !important; }
+
+#display {
+  position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; overflow: hidden; background: #000;
+  transform-origin: 50% 50%;
+}
 
 .stage, .dashboard { position: fixed; inset: 0; background: #000; }
 .layer { position: absolute; inset: 0; opacity: 0; transition: opacity .8s ease; }
@@ -24,35 +32,50 @@ html, body {
 
 .screen {
   position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  text-align: center; padding: 4vh 6vw;
+  text-align: center; padding: calc(var(--vmin) * 4) calc(var(--vw) * 6);
   /* identidade UpDown Internet */
   background: radial-gradient(ellipse at top, rgba(155, 0, 255, .35) 0%, transparent 55%),
     radial-gradient(ellipse at bottom, rgba(0, 206, 255, .18) 0%, transparent 60%), #140058;
 }
-.brand { display: flex; flex-direction: column; align-items: center; margin-bottom: 5vh; }
-.brand-logo { height: 11vh; width: auto; display: block; }
-.sub { font-size: 2.6vh; font-weight: 700; letter-spacing: .45em; text-transform: uppercase; color: #00ceff; margin-top: 1.4vh; padding-left: .45em; }
-.label { font-size: 2.6vh; color: #b9b3e6; text-transform: uppercase; letter-spacing: .2em; margin: 0 0 2vh; }
+.brand { display: flex; flex-direction: column; align-items: center; margin-bottom: calc(var(--vmin) * 5); }
+.brand-logo { height: calc(var(--vmin) * 11); width: auto; display: block; }
+.sub { font-size: calc(var(--vmin) * 2.6); font-weight: 700; letter-spacing: .45em; text-transform: uppercase; color: #00ceff; margin-top: calc(var(--vmin) * 1.4); padding-left: .45em; }
+.label { font-size: calc(var(--vmin) * 2.6); color: #b9b3e6; text-transform: uppercase; letter-spacing: .2em; margin: 0 0 calc(var(--vmin) * 2); }
 .code {
-  font-family: ui-monospace, "DejaVu Sans Mono", monospace; font-size: 16vh; font-weight: 700; letter-spacing: .12em;
-  padding: 2vh 5vw; border-radius: 3vh; background: rgba(17, 1, 112, .7); border: .4vh solid #00ceff;
-  box-shadow: 0 0 4vh rgba(0, 206, 255, .25);
+  font-family: ui-monospace, "DejaVu Sans Mono", monospace; font-size: calc(var(--vmin) * 16); font-weight: 700; letter-spacing: .12em;
+  padding: calc(var(--vmin) * 2) calc(var(--vw) * 5); border-radius: calc(var(--vmin) * 3); background: rgba(17, 1, 112, .7); border: calc(var(--vmin) * .4) solid #00ceff;
+  box-shadow: 0 0 calc(var(--vmin) * 4) rgba(0, 206, 255, .25);
 }
-.hint { font-size: 3vh; max-width: 70vw; line-height: 1.4; margin-top: 5vh; }
-.muted { color: #b9b3e6; font-size: 2.4vh; }
-.clock { font-size: 12vh; font-weight: 200; margin-bottom: 2vh; }
-h1 { font-size: 4.5vh; font-weight: 500; margin: 0 0 1vh; }
+.hint { font-size: calc(var(--vmin) * 3); max-width: calc(var(--vw) * 70); line-height: 1.4; margin-top: calc(var(--vmin) * 5); }
+.muted { color: #b9b3e6; font-size: calc(var(--vmin) * 2.4); }
+.clock { font-size: calc(var(--vmin) * 12); font-weight: 200; margin-bottom: calc(var(--vmin) * 2); }
+h1 { font-size: calc(var(--vmin) * 4.5); font-weight: 500; margin: 0 0 calc(var(--vmin) * 1); }
 
 .badge {
-  position: fixed; right: 1.2vw; bottom: 1.2vh; font-size: 2vh; color: #ff5a5a; opacity: .75;
+  position: fixed; right: calc(var(--vw) * 1.2); bottom: calc(var(--vmin) * 1.2); font-size: calc(var(--vmin) * 2); color: #ff5a5a; opacity: .75;
   text-shadow: 0 0 6px #000;
 }
 .info {
-  position: fixed; left: 2vw; top: 2vh; margin: 0; padding: 1.5vh 2vw; max-width: 60vw;
-  font: 1.8vh/1.5 ui-monospace, monospace; white-space: pre-wrap;
-  background: rgba(17, 1, 112, .92); border: 1px solid #00ceff; border-radius: 1vh; z-index: 10;
+  position: fixed; left: calc(var(--vw) * 2); top: calc(var(--vmin) * 2); margin: 0; padding: calc(var(--vmin) * 1.5) calc(var(--vw) * 2); max-width: calc(var(--vw) * 60);
+  font: calc(var(--vmin) * 1.8)/1.5 ui-monospace, monospace; white-space: pre-wrap;
+  background: rgba(17, 1, 112, .92); border: 1px solid #00ceff; border-radius: calc(var(--vmin) * 1); z-index: 10;
 }
 .toast {
-  position: fixed; left: 50%; bottom: 5vh; transform: translateX(-50%); padding: 1.2vh 2vw; z-index: 10;
-  background: rgba(0, 0, 0, .75); border-radius: 1vh; font-size: 2.2vh;
+  position: fixed; left: 50%; bottom: calc(var(--vmin) * 5); transform: translateX(-50%); padding: calc(var(--vmin) * 1.2) calc(var(--vw) * 2); z-index: 10;
+  background: rgba(0, 0, 0, .75); border-radius: calc(var(--vmin) * 1); font-size: calc(var(--vmin) * 2.2);
 }
+
+.identify { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center;
+  border: calc(var(--vmin) * .8) solid #00ceff;
+  background: repeating-linear-gradient(0deg, transparent 0 calc(var(--vmin) * 10 - 1px), rgba(0, 206, 255, .25) calc(var(--vmin) * 10 - 1px) calc(var(--vmin) * 10)),
+    repeating-linear-gradient(90deg, transparent 0 calc(var(--vmin) * 10 - 1px), rgba(0, 206, 255, .25) calc(var(--vmin) * 10 - 1px) calc(var(--vmin) * 10)),
+    rgba(20, 0, 88, .92); }
+.identify .corner { position: absolute; width: calc(var(--vmin) * 8); height: calc(var(--vmin) * 8); border: calc(var(--vmin) * .8) solid #fbbc04; }
+.identify .tl { left: 0; top: 0; border-right: 0; border-bottom: 0; }
+.identify .tr { right: 0; top: 0; border-left: 0; border-bottom: 0; }
+.identify .bl { left: 0; bottom: 0; border-right: 0; border-top: 0; }
+.identify .br { right: 0; bottom: 0; border-left: 0; border-top: 0; }
+.identify-box { text-align: center; padding: calc(var(--vmin) * 3) calc(var(--vmin) * 4); border-radius: calc(var(--vmin) * 2);
+  background: rgba(17, 1, 112, .95); border: 2px solid #9b00ff; max-width: 90%; }
+.identify-title { font-size: calc(var(--vmin) * 6); font-weight: 700; color: #00ceff; margin-bottom: calc(var(--vmin) * 1.5); }
+.identify-box pre { margin: 0; font: calc(var(--vmin) * 2.6)/1.5 ui-monospace, monospace; white-space: pre-wrap; text-align: left; }

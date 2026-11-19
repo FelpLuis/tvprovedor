@@ -23,6 +23,21 @@ class ScreenProfile(str, Enum):
         return PROFILE_DASHBOARD_KIND.get(self)
 
 
+class Orientation(str, Enum):
+    LANDSCAPE = "landscape"                  # paisagem (padrão)
+    PORTRAIT = "portrait"                    # retrato: conteúdo girado 90° (TV instalada em pé)
+    LANDSCAPE_FLIPPED = "landscape_flipped"  # paisagem invertida (180°)
+    PORTRAIT_FLIPPED = "portrait_flipped"    # retrato invertido (270°)
+
+
+ORIENTATION_ROTATION = {
+    Orientation.LANDSCAPE: 0,
+    Orientation.PORTRAIT: 90,
+    Orientation.LANDSCAPE_FLIPPED: 180,
+    Orientation.PORTRAIT_FLIPPED: 270,
+}
+
+
 class ScreenStatus(str, Enum):
     ACTIVE = "active"
     DISABLED = "disabled"
@@ -77,6 +92,7 @@ class CommandType(str, Enum):
     RESTART_PLAYBACK = "restart_playback"
     RELOAD_PAGE = "reload_page"
     CLEAR_CACHE = "clear_cache"
+    IDENTIFY = "identify"  # padrão de teste com nome, resolução e orientação
 
 
 class CommandStatus(str, Enum):

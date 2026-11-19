@@ -9,6 +9,7 @@ ENV_FILE="$BASE/.env"
 DB_DUMP="${1:?informe o arquivo db-*.dump}"
 STORAGE_TAR="${2:-}"
 
+[ -r "$ENV_FILE" ] || { echo "Arquivo $ENV_FILE não encontrado"; exit 1; }
 DB_URL="$(grep -E '^UDS_DATABASE_URL=' "$ENV_FILE" | cut -d= -f2-)"
 STORAGE="$(grep -E '^UDS_STORAGE_DIR=' "$ENV_FILE" | cut -d= -f2- || true)"
 STORAGE="${STORAGE:-$BASE/storage}"

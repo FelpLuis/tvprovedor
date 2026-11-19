@@ -105,6 +105,119 @@
     $('offline-badge').classList.toggle('hidden', online);
   }
 
+  // ---------------------------------------------------------------- disposição da tela
+  //
+  // Todo o conteúdo fica no elemento #display ("palco lógico"). Conforme a configuração da TV:
+  //  - rotation 90/270: o palco fica em pé (retrato) e é girado para a TV instalada na vertical;
+  //  - width/height: resolução fixa de renderização, escalada para caber na tela real
+  //    (mesmo layout em TVs de polegadas e resoluções diferentes);
+  //  - safe_margin_percent: margem para TVs que cortam as bordas (overscan).
+
+  var ORIENTATION_LABEL = { 0: 'paisagem', 90: 'retrato', 180: 'paisagem invertida', 270: 'retrato invertido' };
+
+  var LS_DISPLAY = 'uds.display';
+
+  // App Android "UpDown Digital": expõe window.UpDownNative (tela cheia, informações do aparelho)
+  var NATIVE = window.UpDownNative || null;
+  var nativeInfo = null;
+  if (NATIVE) {
+    try { nativeInfo = JSON.parse(NATIVE.getInfo()); } catch (e) { nativeInfo = null; }
+  }
+
+  /** Configuração do gerenciador; antes da ativação, a última disposição usada nesta TV. */
+  function displaySettings() {
+    if (state.config && state.config.display) { return state.config.display; }
+    try {
+      var saved = JSON.parse(lsGet(LS_DISPLAY) || 'null');
+      if (saved && typeof saved.rotation === 'number') { return saved; }
+    } catch (e) { /* ignora */ }
+    return { rotation: 0, width: null, height: null, safe_margin_percent: 0 };
+  }
+
+  function applyDisplay() {
+    var d = displaySettings();
+    var el = $('display');
+    var rot = d.rotation || 0;
+    var pw = window.innerWidth || document.documentElement.clientWidth;
+    var ph = window.innerHeight || document.documentElement.clientHeight;
+    var sideways = rot === 90 || rot === 270;
+    var availW = sideways ? ph : pw;
+    var availH = sideways ? pw : ph;
+    var margin = Math.min(Math.max(d.safe_margin_percent || 0, 0), 10) / 100;
+    var innerW = availW * (1 - 2 * margin);
+    var innerH = availH * (1 - 2 * margin);
+    var lw, lh, scale;
+    if (d.width && d.height) {
+      lw = d.width; lh = d.height;
+      scale = Math.min(innerW / lw, innerH / lh);
+    } else {
+      lw = Math.round(innerW); lh = Math.round(innerH);
+      scale = 1;
+    }
+    el.style.width = lw + 'px';
+    el.style.height = lh + 'px';
+    el.style.left = ((pw - lw) / 2) + 'px';
+    el.style.top = ((ph - lh) / 2) + 'px';
+    el.style.transform = 'rotate(' + rot + 'deg) scale(' + scale + ')';
+    el.style.setProperty('--vmin', (Math.min(lw, lh) / 100) + 'px');
+    el.style.setProperty('--vw', (lw / 100) + 'px');
+    var wantFullscreen = d.fullscreen !== false;
+    if (NATIVE) {
+      try { NATIVE.setFullscreen(wantFullscreen); } catch (e) { /* ignora */ }
+    }
+    var so = window.screen && window.screen.orientation && window.screen.orientation.type;
+    state.display = {
+      viewport: [pw, ph],
+      screen: [window.screen ? window.screen.width : pw, window.screen ? window.screen.height : ph],
+      dpr: window.devicePixelRatio || 1,
+      device_orientation: so || (pw >= ph ? 'landscape' : 'portrait'),
+      logical: [lw, lh],
+      rotation: rot,
+      scale: Math.round(scale * 1000) / 1000,
+      fullscreen: wantFullscreen,
+      client: NATIVE ? 'app' : 'navegador'
+    };
+    if (nativeInfo) {
+      state.display.app = String(nativeInfo.app || '');
+      state.display.device = String(nativeInfo.device || '');
+      state.display.android = String(nativeInfo.android || '');
+    }
+  }
+
+  function displaySummary() {
+    var x = state.display;
+    if (!x) { return '-'; }
+    return 'palco ' + x.logical[0] + '×' + x.logical[1] + ' (' + ORIENTATION_LABEL[x.rotation] +
+      ', escala ' + x.scale + ') · navegador ' + x.viewport[0] + '×' + x.viewport[1] +
+      ' · DPR ' + x.dpr + ' (≈ ' + Math.round(x.viewport[0] * x.dpr) + '×' + Math.round(x.viewport[1] * x.dpr) + ' físicos)';
+  }
+
+  var identifyTimer = null;
+  function showIdentify(seconds) {
+    applyDisplay();
+    var cfg = state.config;
+    var d = displaySettings();
+    var x = state.display;
+    $('identify-title').textContent = cfg ? cfg.screen.identifier + ' — ' + cfg.screen.name : 'TV não ativada';
+    $('identify-text').textContent = [
+      'Orientação:        ' + ORIENTATION_LABEL[x.rotation] + ' (' + x.rotation + '°)',
+      'Resolução do palco: ' + x.logical[0] + ' × ' + x.logical[1] + (d.width ? ' (fixa)' : ' (automática)'),
+      'Escala aplicada:   ' + x.scale,
+      'Navegador:         ' + x.viewport[0] + ' × ' + x.viewport[1] + ' px CSS · DPR ' + x.dpr,
+      'Pixels físicos:    ≈ ' + Math.round(x.viewport[0] * x.dpr) + ' × ' + Math.round(x.viewport[1] * x.dpr),
+      'Tela do aparelho:  ' + x.screen[0] + ' × ' + x.screen[1] + ' · ' + x.device_orientation,
+      'Polegadas:         ' + (d.inches ? d.inches + '"' : 'não informado'),
+      'Margem segurança:  ' + (d.safe_margin_percent || 0) + '%',
+      'Tela cheia:        ' + (d.fullscreen === false ? 'desativada' : 'ativada'),
+      'Player:            ' + PLAYER_VERSION + (nativeInfo ? ' · app ' + nativeInfo.app + ' · ' + nativeInfo.device + ' · Android ' + nativeInfo.android : ' · navegador'),
+      '',
+      'Os cantos amarelos devem aparecer inteiros. Se estiverem cortados, aumente a margem de segurança.'
+    ].join('\n');
+    $('identify').classList.remove('hidden');
+    clearTimeout(identifyTimer);
+    identifyTimer = setTimeout(function () { $('identify').classList.add('hidden'); }, (seconds || 30) * 1000);
+  }
+
   // ---------------------------------------------------------------- mensagens / relógio
 
   var clockTimer = null;
@@ -435,6 +548,8 @@
     state.config = cfg;
     lsSet(LS_CONFIG, JSON.stringify(cfg));
     stopAll();
+    if (cfg.display) { lsSet(LS_DISPLAY, JSON.stringify(cfg.display)); }
+    applyDisplay();
     if (cfg.mode === 'media') {
       startMedia(cfg.playlist);
       MediaCache.releaseUnused(playlistShas(cfg));
@@ -535,6 +650,9 @@
 
   function heartbeat() {
     if (!state.token) { return; }
+    if (NATIVE) {
+      try { NATIVE.ping(); } catch (e) { /* ignora */ }
+    }
     MediaCache.estimate().then(function (storage) {
       var body = {
         player_version: PLAYER_VERSION,
@@ -543,7 +661,8 @@
         current_content: state.currentContent,
         config_hash: state.config ? state.config.config_hash : null,
         error: state.lastError,
-        storage: storage
+        storage: storage,
+        display: state.display
       };
       if (state.downloadProgress) { body.storage = Object.assign({}, storage || {}, { downloading: state.downloadProgress }); }
       return request('POST', '/heartbeat', body);
@@ -598,6 +717,10 @@
       case 'reload_page':
         ack(cmd, true, 'recarregando página').then(function () { location.reload(); });
         break;
+      case 'identify':
+        showIdentify(30);
+        ack(cmd, true, displaySummary());
+        break;
       case 'clear_cache':
         MediaCache.clear().then(function () {
           return ack(cmd, true, 'cache limpo');
@@ -622,6 +745,7 @@
       'Servidor: ' + location.host + '  ' + (state.online ? 'online' : 'SEM CONEXÃO'),
       'Último heartbeat: ' + (state.lastHeartbeatAt ? state.lastHeartbeatAt.toLocaleTimeString() : '-'),
       'Config: ' + (cfg ? cfg.config_hash.slice(0, 12) : '-') + (state.downloadProgress ? '  baixando ' + state.downloadProgress : ''),
+      'Tela: ' + displaySummary(),
       'Service worker: ' + (navigator.serviceWorker && navigator.serviceWorker.controller ? 'ativo' : 'inativo'),
       state.lastError ? 'Erro: ' + state.lastError : ''
     ].join('\n');
@@ -659,12 +783,17 @@
     });
     if (!document.fullscreenElement && (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) {
       var standalone = window.matchMedia && window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches;
-      if (!standalone) {
+      if (!standalone && !NATIVE && displaySettings().fullscreen !== false) {
         $('fullscreen-hint').classList.remove('hidden');
         setTimeout(function () { $('fullscreen-hint').classList.add('hidden'); }, 15000);
       }
     }
     window.addEventListener('online', function () { scheduleHeartbeat(1); });
+    var resizeTimer = null;
+    var onResize = function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(applyDisplay, 200); };
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    applyDisplay();
     window.addEventListener('offline', function () { setOnline(false); });
     // erro inesperado de script: registra para aparecer no painel (heartbeat)
     window.addEventListener('error', function (e) {
@@ -694,6 +823,7 @@
     if (!state.token) { startActivation(); return; }
     var stored = null;
     try { stored = JSON.parse(lsGet(LS_CONFIG) || 'null'); } catch (e) { stored = null; }
+
     sync(true).catch(function (err) {
       if (err instanceof HttpError && (err.status === 401 || err.status === 403)) { return; }
       // sem servidor: reproduz a última configuração válida a partir do cache

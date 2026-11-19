@@ -6,7 +6,7 @@
  */
 'use strict';
 
-var SHELL_CACHE = 'uds-shell-v2';
+var SHELL_CACHE = 'uds-shell-v3';
 var MEDIA_CACHE = 'uds-media-v1';
 var SHELL = [
   '/player/',

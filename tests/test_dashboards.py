@@ -41,3 +41,9 @@ def test_media_screen_ignores_dashboard(client, admin):
     r = admin.post("/api/screens", json={"identifier": "TV-10", "name": "x", "dashboard_id": d["id"]})
     # MEDIA_PLAYER não aceita dashboard
     assert r.status_code == 400
+
+
+def test_dashboard_rejects_protocol_relative_url(admin):
+    for url in ("//evil.example.com/x", "/\\evil.example.com", "/bi/ok\nX-Injected: 1"):
+        assert admin.post("/api/dashboards", json={"name": "X", "kind": "other", "url": url}).status_code == 422
+    assert admin.post("/api/dashboards", json={"name": "Interno", "kind": "updown_bi", "url": "/bi/comercial"}).status_code == 201

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.security import sign_media_url
 from app.models import Dashboard, Playlist, Screen
-from app.models.enums import DashboardKind, MediaKind, ScreenProfile, ScreenStatus
+from app.models.enums import ORIENTATION_ROTATION, DashboardKind, MediaKind, Orientation, ScreenProfile, ScreenStatus
 
 PLAYER_CONFIG_SCHEMA = 1
 
@@ -113,6 +113,26 @@ def _playlist_payload(pl: Playlist) -> Dict[str, Any]:
     }
 
 
+def display_payload(screen: Screen) -> Dict[str, Any]:
+    """Disposição da tela: o player gira e escala um "palco" lógico conforme estes valores."""
+    orientation = Orientation(screen.orientation or Orientation.LANDSCAPE.value)
+    rotation = ORIENTATION_ROTATION[orientation]
+    width = height = None
+    if screen.resolution and screen.resolution != "auto":
+        width, height = (int(x) for x in screen.resolution.split("x"))
+        if rotation in (90, 270):
+            width, height = height, width  # em retrato o palco fica em pé
+    return {
+        "orientation": orientation.value,
+        "rotation": rotation,
+        "width": width,      # None = usar a resolução detectada no aparelho
+        "height": height,
+        "safe_margin_percent": screen.safe_margin_percent or 0,
+        "inches": screen.screen_inches,
+        "fullscreen": screen.fullscreen is not False,
+    }
+
+
 def player_config(screen: Screen) -> Dict[str, Any]:
     """Configuração completa enviada ao player. O hash ignora as URLs assinadas (que mudam)."""
     s = get_settings()
@@ -126,6 +146,7 @@ def player_config(screen: Screen) -> Dict[str, Any]:
             "status": screen.status,
         },
         "heartbeat_interval": s.heartbeat_interval_seconds,
+        "display": display_payload(screen),
         "mode": "idle",
         "playlist": None,
         "dashboard": None,

@@ -44,7 +44,23 @@ Perfis mínimos: **V** visualizador, **O** operador, **A** administrador.
 | POST | `/screens/{id}/revoke` | A | revoga o token do dispositivo |
 | GET | `/screens/{id}/heartbeats?limit` | V | histórico de comunicação |
 | GET | `/screens/{id}/commands` | V | últimos comandos |
-| POST | `/screens/{id}/commands` | O | `{command}`: `reload_config`, `refresh_content`, `restart_playback`, `reload_page`, `clear_cache` |
+| POST | `/screens/{id}/commands` | O | `{command}`: `reload_config`, `refresh_content`, `restart_playback`, `reload_page`, `clear_cache`, `identify` |
+
+Campos de tela da TV (em `POST`/`PATCH /screens`):
+
+| Campo | Valores |
+|---|---|
+| `orientation` | `landscape` (padrão), `portrait` (90°), `landscape_flipped` (180°), `portrait_flipped` (270°) |
+| `resolution` | `auto` ou `LARGURAxALTURA` (ex.: `1920x1080`); sempre salva em paisagem |
+| `screen_inches` | 7 a 150 (opcional) |
+| `safe_margin_percent` | 0 a 10 |
+| `fullscreen` | `true` (padrão) / `false`: tela cheia aplicada pelo app Android |
+
+`display_info` (somente leitura) traz o que o player detectou: `viewport`, `screen`, `dpr`,
+`device_orientation`, `logical` (palco aplicado), `rotation`, `scale`, `fullscreen` e, no app Android,
+`client: "app"`, `app` (versão), `device` (modelo) e `android`.
+
+O APK do app é servido em `GET /app/updown-digital.apk` (sem autenticação; não contém segredos).
 
 ## Grupos
 
@@ -112,7 +128,7 @@ Para imagens, `duration_seconds` é o tempo de exibição; para vídeos, um limi
 | POST | `/player/activation-codes` | — | gera código (máx. 10 por IP a cada 10 min) |
 | POST | `/player/activation-codes/poll` | segredo de pareamento | `pending` ou `activated` + token (uma vez) |
 | GET | `/player/config` | token | configuração com URLs assinadas e `config_hash` |
-| POST | `/player/heartbeat` | token | estado → `{config_hash, commands, heartbeat_interval, new_token?}` |
+| POST | `/player/heartbeat` | token | estado e tela detectada (`display`) → `{config_hash, commands, heartbeat_interval, new_token?}` |
 | POST | `/player/commands/{id}/ack` | token | `{success, result}` |
 | GET | `/player/media/{id}?exp&sig` | URL assinada | download com suporte a `Range` |
 
@@ -123,6 +139,8 @@ Exemplo de configuração de uma TV de mídia:
   "schema": 1,
   "screen": {"uid": "…", "identifier": "TV-01", "name": "TV RECEPÇÃO", "profile": "MEDIA_PLAYER", "status": "active"},
   "heartbeat_interval": 30,
+  "display": {"orientation": "portrait", "rotation": 90, "width": 1080, "height": 1920,
+              "safe_margin_percent": 2, "inches": 55, "fullscreen": true},
   "mode": "media",
   "playlist": {
     "id": 1, "name": "Institucional", "version": 3, "fit_mode": "cover", "transition": "fade",

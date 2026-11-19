@@ -1,6 +1,8 @@
+import os
+from pathlib import Path
 from typing import Iterator
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, make_url
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
@@ -15,8 +17,26 @@ _engine = None
 _SessionLocal = None
 
 
+def _prepare_sqlite(url: str) -> None:
+    path = make_url(url).database
+    if not path or path == ":memory:":
+        return
+    folder = Path(path).expanduser().resolve().parent
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    if not os.access(folder, os.W_OK):
+        raise RuntimeError(
+            f"Não é possível criar o banco SQLite em {folder} (sem permissão). "
+            "Em produção defina UDS_DATABASE_URL (PostgreSQL) no .env e carregue-o antes do comando."
+        )
+
+
 def _make_engine(url: str) -> Engine:
     kwargs = {"pool_pre_ping": True, "future": True}
+    if url.startswith("sqlite"):
+        _prepare_sqlite(url)
     if url.startswith("sqlite"):
         kwargs["connect_args"] = {"check_same_thread": False}
     engine = create_engine(url, **kwargs)

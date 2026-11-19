@@ -7,3 +7,7 @@ storage/
 *.sqlite3
 *.db
 backups/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties

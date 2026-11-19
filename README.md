@@ -46,6 +46,10 @@ Cada TV tem **um perfil fixo**:
 - **Players de dashboard** com recarga sem tela preta, watchdog de carregamento e recarga completa
   periódica.
 - **Auditoria** de todas as alterações, logins e comandos.
+- **Tela por TV**: paisagem/retrato, resolução de exibição, polegadas, margem de segurança e tela
+  cheia, tudo definido no gerenciador.
+- **App Android TV** com a URL única embutida: abre sozinho ao ligar a TV, em tela cheia, e é
+  instalado pela rede com `scripts/instalar_tv.sh`, sem abrir o navegador da TV.
 
 ## Desenvolvimento local
 
@@ -99,6 +103,8 @@ frontend/
   admin/               painel (HTML/CSS/JS, sem build)
   player/              PWA: player.js, media-cache.js, dashboard.js, sw.js
   player/brand/        logotipos e favicon oficiais da UpDown Internet (usados também pelo painel)
+  app/                 APK do app Android TV servido em /app/updown-digital.apk
+android/               app Android TV (Kotlin): URL única, tela cheia, início automático, quiosque
 deploy/                serviço systemd e bloco do Caddy
 scripts/               diagnóstico, backup, restauração e atualização
 tests/                 testes automatizados (pytest)
