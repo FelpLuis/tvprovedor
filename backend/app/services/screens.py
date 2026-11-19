@@ -129,6 +129,7 @@ def display_payload(screen: Screen) -> Dict[str, Any]:
         "height": height,
         "safe_margin_percent": screen.safe_margin_percent or 0,
         "inches": screen.screen_inches,
+        "fullscreen": screen.fullscreen is not False,
     }
 
 

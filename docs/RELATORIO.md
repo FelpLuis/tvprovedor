@@ -32,14 +32,15 @@ passo em [INSTALACAO.md](INSTALACAO.md) e deve ser executada com autorização, 
 | 9 Segurança | ✅ | ver [ARQUITETURA.md](ARQUITETURA.md#segurança) |
 | 10 Implantação (systemd, Caddy, banco exclusivo, porta 8095) | 📄 documentado | `deploy/`, `docs/INSTALACAO.md` |
 | 11 Interface (escura/clara, responsiva, menu lateral, cards) | ✅ | `frontend/admin` |
-| 12 Testes automatizados | ✅ | `tests/` (45 testes) |
+| 12 Testes automatizados | ✅ | `tests/` (48 testes) |
 | 13 Monitoramento (disponibilidade, histórico, erros, versão, armazenamento) | ✅ | painel → TVs → detalhes |
 | 15 Versionamento (.env fora do Git, .env.example) | ✅ | `.gitignore`, `.env.example` |
 | Extra: orientação retrato/paisagem, resolução por TV, polegadas, margem de segurança, identificação de tela | ✅ | `player.js::applyDisplay`, migração `0002` |
+| Extra: app Android TV (URL única, tela cheia pelo gerenciador, início automático, quiosque) e instalação pela rede | ✅ compilado | `android/`, `scripts/instalar_tv.sh`, migração `0003` |
 
 ## Testes executados
 
-### Automatizados (pytest): 45 testes, todos passando
+### Automatizados (pytest): 48 testes, todos passando
 
 Executados em **SQLite** e em **PostgreSQL 16** (`UDS_TEST_DATABASE_URL`), com Python 3.10
 (mesma versão do servidor):
@@ -90,7 +91,7 @@ sem diferenças entre os modelos e a migração.
 
 ### Disposição da tela (Chromium, TV simulada de 1280×720)
 
-- `?orientacao=retrato` antes da ativação: código exibido em pé (palco 720×1280 girado 90°).
+- TV nova antes da ativação: código em paisagem; após ativar como retrato, a TV gira sozinha.
 - TV em retrato com resolução Full HD e margem de 2%: palco 1080×1920, rotação 90°, escala 0,64
   (cabe inteiro em 691×1229 px úteis); playlist reproduzindo em pé.
 - Comando *Identificar tela* exibido e confirmado; o painel recebeu a tela detectada.
@@ -98,6 +99,19 @@ sem diferenças entre os modelos e a migração.
 - Formulário do painel com resolução personalizada 1080×1920 salva como 1920×1080 + retrato.
 - Migração `0002` aplicada em PostgreSQL com TVs existentes (todas ficaram em paisagem/automática)
   e revertida com sucesso.
+
+### App Android TV
+
+- Projeto `android/` (Kotlin, sem dependências externas) compilado aqui com Android SDK 34:
+  APK de 672 KB, assinado com a chave do projeto, `minSdk 21` (Android 5.0), reconhecido como app
+  de Android TV (`leanback-launchable`, banner da marca).
+- Integração player ↔ app testada no Chromium com a mesma interface `UpDownNative` do app:
+  tela cheia aplicada e depois desligada pelo gerenciador, sinal de vida a cada heartbeat,
+  modelo/Android/versão do app chegando ao painel, sem a dica "Pressione OK".
+- `scripts/instalar_tv.sh` testado com um `adb` simulado (2 TVs, modo quiosque): sequência de
+  comandos conferida.
+- **Não executado em aparelho real nem em emulador** (o ambiente de desenvolvimento não tem
+  virtualização). A primeira instalação numa TV real é a homologação do app.
 
 ### Ainda não testado
 
@@ -132,7 +146,7 @@ sem diferenças entre os modelos e a migração.
 
 ## Pendências e próximos passos
 
-1. **Homologação em uma TV Android real** e escolha do navegador de quiosque.
+1. **Homologação em uma TV Android real** com o app UpDown Digital (instalação pela rede, início automático, quiosque).
 2. **Implantação** seguindo `docs/INSTALACAO.md` (com autorização a cada etapa), incluindo a
    escolha do cluster PostgreSQL (5432 ou 5433).
 3. **Fase 5: UpDown BI / IXC Soft:** levantar os endpoints e campos disponíveis na API do IXC,

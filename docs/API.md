@@ -54,9 +54,13 @@ Campos de tela da TV (em `POST`/`PATCH /screens`):
 | `resolution` | `auto` ou `LARGURAxALTURA` (ex.: `1920x1080`); sempre salva em paisagem |
 | `screen_inches` | 7 a 150 (opcional) |
 | `safe_margin_percent` | 0 a 10 |
+| `fullscreen` | `true` (padrão) / `false`: tela cheia aplicada pelo app Android |
 
 `display_info` (somente leitura) traz o que o player detectou: `viewport`, `screen`, `dpr`,
-`device_orientation`, `logical` (palco aplicado), `rotation` e `scale`.
+`device_orientation`, `logical` (palco aplicado), `rotation`, `scale`, `fullscreen` e, no app Android,
+`client: "app"`, `app` (versão), `device` (modelo) e `android`.
+
+O APK do app é servido em `GET /app/updown-digital.apk` (sem autenticação; não contém segredos).
 
 ## Grupos
 
@@ -136,7 +140,7 @@ Exemplo de configuração de uma TV de mídia:
   "screen": {"uid": "…", "identifier": "TV-01", "name": "TV RECEPÇÃO", "profile": "MEDIA_PLAYER", "status": "active"},
   "heartbeat_interval": 30,
   "display": {"orientation": "portrait", "rotation": 90, "width": 1080, "height": 1920,
-              "safe_margin_percent": 2, "inches": 55},
+              "safe_margin_percent": 2, "inches": 55, "fullscreen": true},
   "mode": "media",
   "playlist": {
     "id": 1, "name": "Institucional", "version": 3, "fit_mode": "cover", "transition": "fade",

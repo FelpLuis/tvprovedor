@@ -113,19 +113,20 @@
   //    (mesmo layout em TVs de polegadas e resoluções diferentes);
   //  - safe_margin_percent: margem para TVs que cortam as bordas (overscan).
 
-  var ORIENTATION_PARAM = { retrato: 90, portrait: 90, 'retrato-invertido': 270, 'paisagem-invertida': 180 };
   var ORIENTATION_LABEL = { 0: 'paisagem', 90: 'retrato', 180: 'paisagem invertida', 270: 'retrato invertido' };
 
   var LS_DISPLAY = 'uds.display';
 
-  /** Prioridade: configuração do servidor > ?orientacao= na URL > última disposição usada > paisagem. */
+  // App Android "UpDown Digital": expõe window.UpDownNative (tela cheia, informações do aparelho)
+  var NATIVE = window.UpDownNative || null;
+  var nativeInfo = null;
+  if (NATIVE) {
+    try { nativeInfo = JSON.parse(NATIVE.getInfo()); } catch (e) { nativeInfo = null; }
+  }
+
+  /** Configuração do gerenciador; antes da ativação, a última disposição usada nesta TV. */
   function displaySettings() {
     if (state.config && state.config.display) { return state.config.display; }
-    // antes da ativação: /player/?orientacao=retrato já exibe o código na posição certa
-    var m = /[?&]orientacao=([\w-]+)/.exec(location.search);
-    if (m && ORIENTATION_PARAM[m[1].toLowerCase()] !== undefined) {
-      return { rotation: ORIENTATION_PARAM[m[1].toLowerCase()], width: null, height: null, safe_margin_percent: 0 };
-    }
     try {
       var saved = JSON.parse(lsGet(LS_DISPLAY) || 'null');
       if (saved && typeof saved.rotation === 'number') { return saved; }
@@ -160,6 +161,10 @@
     el.style.transform = 'rotate(' + rot + 'deg) scale(' + scale + ')';
     el.style.setProperty('--vmin', (Math.min(lw, lh) / 100) + 'px');
     el.style.setProperty('--vw', (lw / 100) + 'px');
+    var wantFullscreen = d.fullscreen !== false;
+    if (NATIVE) {
+      try { NATIVE.setFullscreen(wantFullscreen); } catch (e) { /* ignora */ }
+    }
     var so = window.screen && window.screen.orientation && window.screen.orientation.type;
     state.display = {
       viewport: [pw, ph],
@@ -168,8 +173,15 @@
       device_orientation: so || (pw >= ph ? 'landscape' : 'portrait'),
       logical: [lw, lh],
       rotation: rot,
-      scale: Math.round(scale * 1000) / 1000
+      scale: Math.round(scale * 1000) / 1000,
+      fullscreen: wantFullscreen,
+      client: NATIVE ? 'app' : 'navegador'
     };
+    if (nativeInfo) {
+      state.display.app = String(nativeInfo.app || '');
+      state.display.device = String(nativeInfo.device || '');
+      state.display.android = String(nativeInfo.android || '');
+    }
   }
 
   function displaySummary() {
@@ -196,7 +208,8 @@
       'Tela do aparelho:  ' + x.screen[0] + ' × ' + x.screen[1] + ' · ' + x.device_orientation,
       'Polegadas:         ' + (d.inches ? d.inches + '"' : 'não informado'),
       'Margem segurança:  ' + (d.safe_margin_percent || 0) + '%',
-      'Player:            ' + PLAYER_VERSION,
+      'Tela cheia:        ' + (d.fullscreen === false ? 'desativada' : 'ativada'),
+      'Player:            ' + PLAYER_VERSION + (nativeInfo ? ' · app ' + nativeInfo.app + ' · ' + nativeInfo.device + ' · Android ' + nativeInfo.android : ' · navegador'),
       '',
       'Os cantos amarelos devem aparecer inteiros. Se estiverem cortados, aumente a margem de segurança.'
     ].join('\n');
@@ -637,6 +650,9 @@
 
   function heartbeat() {
     if (!state.token) { return; }
+    if (NATIVE) {
+      try { NATIVE.ping(); } catch (e) { /* ignora */ }
+    }
     MediaCache.estimate().then(function (storage) {
       var body = {
         player_version: PLAYER_VERSION,
@@ -767,7 +783,7 @@
     });
     if (!document.fullscreenElement && (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) {
       var standalone = window.matchMedia && window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches;
-      if (!standalone) {
+      if (!standalone && !NATIVE && displaySettings().fullscreen !== false) {
         $('fullscreen-hint').classList.remove('hidden');
         setTimeout(function () { $('fullscreen-hint').classList.add('hidden'); }, 15000);
       }

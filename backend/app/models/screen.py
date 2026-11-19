@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import JSON, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text, true as sa_true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -53,6 +53,8 @@ class Screen(Base):
     resolution: Mapped[str] = mapped_column(String(16), default="auto", server_default="auto")  # auto | LxA
     screen_inches: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     safe_margin_percent: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # tela cheia/quiosque (aplicada pelo app Android; no navegador depende de um toque em OK)
+    fullscreen: Mapped[bool] = mapped_column(Boolean, default=True, server_default=sa_true())
 
     # Autenticação do dispositivo (hash do token, nunca o token em si)
     token_hash: Mapped[Optional[str]] = mapped_column(String(64), unique=True, nullable=True)

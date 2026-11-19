@@ -1,7 +1,68 @@
 # Configuração das TVs Android
 
-O player é uma aplicação web (PWA) em `https://tv.updown.com.br/player`. Não é preciso instalar
-um aplicativo próprio na primeira versão, mas a TV precisa de um navegador moderno que:
+## App UpDown Digital (recomendado)
+
+O app Android TV (`br.com.updown.digital`) abre sozinho **sempre a mesma URL** do player
+(`https://tv.updown.com.br/player/`), em tela cheia, sem barra de endereço e sem precisar abrir o
+navegador ou digitar nada na TV. Ele:
+
+- aparece na tela inicial da Android TV e **abre automaticamente ao ligar a TV**;
+- em **modo quiosque**, vira a própria tela inicial (a TV sempre volta para a programação);
+- mantém a tela ligada, reproduz vídeos com som sem precisar de clique;
+- aplica a **tela cheia definida no gerenciador** para cada TV;
+- recarrega sozinho se a página falhar, se o navegador interno travar ou se o player ficar 5 minutos
+  sem dar sinal de vida;
+- informa ao painel o modelo do aparelho, a versão do Android e a do app (TVs → detalhes → Tela detectada);
+- ignora a tecla VOLTAR (para sair na manutenção: VOLTAR 5 vezes seguidas).
+
+Requisitos: Android 5.0 ou superior (TVs, TV boxes e monitores Android).
+
+### Instalação pela rede, sem mexer na TV (recomendada)
+
+1. Na TV: **Configurações → Preferências do dispositivo → Sobre** e clique 7 vezes em **Build**
+   para liberar as opções do desenvolvedor. Em **Opções do desenvolvedor**, ative **Depuração USB**
+   e **Depuração pela rede/ADB pela rede**. Anote o IP da TV (Configurações → Rede).
+2. Em um computador com `adb` na mesma rede (ou no servidor, após instalar o pacote `adb`):
+
+   ```bash
+   scripts/instalar_tv.sh 192.168.0.50 --quiosque
+   ```
+
+   Vários IPs de uma vez também funcionam. Na primeira conexão a TV pede para autorizar a
+   depuração: confirme com **Sempre permitir**.
+3. O script baixa o app de `https://tv.updown.com.br/app/updown-digital.apk`, instala, libera a
+   abertura automática ao ligar, desativa protetor de tela e suspensão, ativa o modo quiosque
+   (`--quiosque`) e abre o player. A TV mostra o código de ativação.
+4. No painel: **TVs → Ativar TV**, informe o código e defina orientação, resolução e tela cheia.
+
+Opções do script: `--apk arquivo.apk` (usar um APK local), `--servidor https://...` (outro
+servidor, ex.: homologação) e `--sem-ajustes` (não mexer em protetor de tela/suspensão).
+
+### Instalação por pen drive
+
+Baixe o APK em **TVs → App Android TV → Baixar APK**, copie para um pen drive e abra-o na TV com
+um gerenciador de arquivos (permita "fontes desconhecidas"). Abra o app uma vez. Para abrir
+sozinho ao ligar em Android 10 ou superior, use a instalação pela rede (que libera essa permissão)
+ou defina o app como tela inicial.
+
+### Atualização do app
+
+Instale o APK novo por cima (`scripts/instalar_tv.sh IP` de novo ou pen drive). Todas as versões
+são assinadas com a mesma chave do projeto (`android/keystore/`), então não é preciso desinstalar.
+
+Para compilar o app (Android SDK e JDK 17+), em `android/`:
+
+```bash
+./gradlew assembleRelease
+```
+
+O APK gerado fica em `android/app/build/outputs/apk/release/app-release.apk`; copie-o para
+`frontend/app/updown-digital.apk` para o servidor oferecê-lo para download.
+
+## Navegador (alternativa)
+
+O player também funciona direto no navegador, em `https://tv.updown.com.br/player`. A TV precisa
+de um navegador moderno que:
 
 - rode em **HTTPS** (o cache offline e o service worker só funcionam em conexão segura);
 - permita reprodução automática de vídeo;
@@ -59,13 +120,13 @@ Cada TV tem a sua configuração de tela em **TVs → Editar → Tela**:
 | **Resolução de exibição** | *Automática* usa a resolução que o navegador da TV informa. Uma resolução fixa (HD, Full HD, 4K ou personalizada) monta o conteúdo sempre nesse tamanho e o ajusta à tela: o mesmo layout aparece igual em TVs de polegadas e resoluções diferentes. Resoluções menores deixam textos e dashboards maiores. Em retrato, largura e altura são invertidas automaticamente (1920×1080 vira 1080×1920). |
 | **Tamanho (polegadas)** | Registro da TV e sugestão de resolução: até 32" → HD; 40" a 50" → Full HD; 55" ou mais → Full HD (dashboards) ou 4K (conteúdo em 4K). |
 | **Margem de segurança** | Reduz a área útil em 0% a 10% de cada lado, para TVs que cortam as bordas (*overscan*). |
+| **Tela cheia (modo quiosque)** | Ligada por padrão. No app UpDown Digital é aplicada automaticamente; no navegador depende de pressionar OK uma vez. |
 
 As mudanças chegam à TV sozinhas no próximo heartbeat (até 30 s), sem reinstalar nada.
 
-**Antes da ativação**, para o código já aparecer na posição certa numa TV em pé, abra o player com o
-parâmetro de orientação: `https://tv.updown.com.br/player/?orientacao=retrato` (também aceita
-`retrato-invertido` e `paisagem-invertida`). Depois de ativada, vale a configuração do painel; a
-última orientação usada fica guardada na TV.
+**Antes da ativação** a TV usa a última orientação aplicada nela (numa TV nova, paisagem). Todas
+as TVs usam **a mesma URL**; orientação, resolução e tela cheia vêm sempre do gerenciador e são
+aplicadas assim que a TV é ativada.
 
 **Identificar tela:** em TVs → detalhes → Comandos remotos, o comando *Identificar tela* mostra
 na TV, por 30 segundos, um padrão de teste com o nome da TV, a orientação, a resolução do palco,

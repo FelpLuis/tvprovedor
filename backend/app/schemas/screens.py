@@ -64,6 +64,7 @@ class ScreenBase(BaseModel):
     resolution: str = Field(default="auto", pattern=RESOLUTION_PATTERN)
     screen_inches: Optional[int] = Field(default=None, ge=7, le=150)
     safe_margin_percent: int = Field(default=0, ge=0, le=10)
+    fullscreen: bool = True
 
     _res = field_validator("resolution")(_check_resolution)
 
@@ -88,6 +89,7 @@ class ScreenUpdate(BaseModel):
     resolution: Optional[str] = Field(default=None, pattern=RESOLUTION_PATTERN)
     screen_inches: Optional[int] = Field(default=None, ge=7, le=150)
     safe_margin_percent: Optional[int] = Field(default=None, ge=0, le=10)
+    fullscreen: Optional[bool] = None
 
     _res = field_validator("resolution")(_check_resolution)
 
@@ -113,6 +115,7 @@ class ScreenOut(ORMModel):
     resolution: str
     screen_inches: Optional[int]
     safe_margin_percent: int
+    fullscreen: bool
     display_info: Optional[Dict[str, Any]]
     config_hash: Optional[str] = None
     applied_config_hash: Optional[str]

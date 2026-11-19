@@ -6,7 +6,7 @@ def test_default_display_is_landscape_auto(client, admin):
     assert screen["orientation"] == "landscape" and screen["resolution"] == "auto"
     cfg = client.get("/api/player/config", headers=dev(token)).json()
     assert cfg["display"] == {"orientation": "landscape", "rotation": 0, "width": None, "height": None,
-                              "safe_margin_percent": 0, "inches": None}
+                              "safe_margin_percent": 0, "inches": None, "fullscreen": True}
 
 
 def test_portrait_fixed_resolution_swaps_and_changes_hash(client, admin):
@@ -18,7 +18,7 @@ def test_portrait_fixed_resolution_swaps_and_changes_hash(client, admin):
     assert r.json()["orientation"] == "portrait"
     cfg = client.get("/api/player/config", headers=dev(token)).json()
     assert cfg["display"] == {"orientation": "portrait", "rotation": 90, "width": 1080, "height": 1920,
-                              "safe_margin_percent": 3, "inches": 50}
+                              "safe_margin_percent": 3, "inches": 50, "fullscreen": True}
     assert cfg["config_hash"] != before  # a TV aplica a mudança sozinha no próximo heartbeat
 
 
@@ -51,3 +51,28 @@ def test_identify_command(client, admin):
     assert r.status_code == 201
     cmds = client.post("/api/player/heartbeat", json={}, headers=dev(token)).json()["commands"]
     assert cmds[0]["command"] == "identify"
+
+
+def test_fullscreen_defined_by_manager(client, admin):
+    token, screen = activate_device(admin, client)
+    assert screen["fullscreen"] is True
+    before = client.get("/api/player/config", headers=dev(token)).json()["config_hash"]
+    assert admin.patch(f"/api/screens/{screen['id']}", json={"fullscreen": False}).status_code == 200
+    cfg = client.get("/api/player/config", headers=dev(token)).json()
+    assert cfg["display"]["fullscreen"] is False and cfg["config_hash"] != before
+
+
+def test_heartbeat_reports_android_app(client, admin):
+    token, screen = activate_device(admin, client)
+    client.post("/api/player/heartbeat", headers=dev(token), json={"display": {
+        "viewport": [1920, 1080], "client": "app", "app": "1.0.0", "device": "Xiaomi MiBox S",
+        "android": "9", "fullscreen": True}})
+    info = admin.get(f"/api/screens/{screen['id']}").json()["display_info"]
+    assert info["client"] == "app" and info["device"] == "Xiaomi MiBox S" and info["fullscreen"] is True
+
+
+def test_android_apk_download(client):
+    r = client.get("/app/updown-digital.apk")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/vnd.android.package-archive"
+    assert r.content[:2] == b"PK"  # APK é um arquivo zip

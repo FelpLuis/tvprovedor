@@ -1,3 +1,4 @@
+import mimetypes
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -88,6 +89,10 @@ def create_app() -> FastAPI:
         return RedirectResponse("/player/")
 
     app.mount("/player", StaticFiles(directory=frontend / "player", html=True), name="player")
+    # APK do app Android TV, baixado pelo instalador/TV (não contém segredos)
+    mimetypes.add_type("application/vnd.android.package-archive", ".apk")
+    if (frontend / "app").is_dir():
+        app.mount("/app", StaticFiles(directory=frontend / "app"), name="android-app")
     app.mount("/", StaticFiles(directory=frontend / "admin", html=True), name="admin")
     return app
 

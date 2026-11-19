@@ -59,7 +59,8 @@ def _maintenance(db: Session) -> None:
     db.commit()
 
 
-DISPLAY_KEYS = ("viewport", "screen", "dpr", "device_orientation", "logical", "rotation", "scale")
+DISPLAY_KEYS = ("viewport", "screen", "dpr", "device_orientation", "logical", "rotation", "scale",
+                "client", "app", "device", "android", "fullscreen")
 
 
 def _clean_display(raw: Dict[str, Any]) -> Dict[str, Any]:
@@ -67,7 +68,9 @@ def _clean_display(raw: Dict[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     for k in DISPLAY_KEYS:
         v = raw.get(k)
-        if isinstance(v, (int, float)) and not isinstance(v, bool):
+        if isinstance(v, bool):
+            out[k] = v
+        elif isinstance(v, (int, float)):
             out[k] = round(float(v), 3)
         elif isinstance(v, str):
             out[k] = v[:40]

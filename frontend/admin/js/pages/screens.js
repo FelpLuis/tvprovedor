@@ -46,6 +46,8 @@ function screenFields(refs, values = {}) {
       onchange: (v, inputs) => updateDisplay(inputs), help: ' ' },
     { name: 'safe_margin_percent', label: 'Margem de segurança (%)', type: 'number', min: 0, max: 10, default: 0,
       help: 'Use 2% a 5% se a TV cortar as bordas (overscan). Confira com o comando "Identificar tela".' },
+    { name: 'fullscreen', label: 'Tela cheia (modo quiosque)', type: 'checkbox', default: true, full: true,
+      help: 'No app UpDown Digital a tela cheia é aplicada automaticamente. No navegador, é preciso pressionar OK uma vez.' },
   ];
   function updateDisplay(inputs) {
     const custom = inputs.resolution_preset.el.value === 'custom';
@@ -71,7 +73,8 @@ function screenFields(refs, values = {}) {
 function displayValues(screen) {
   const res = (screen && screen.resolution) || 'auto';
   const known = RESOLUTIONS.some(([v]) => v === res);
-  const out = { orientation: (screen && screen.orientation) || 'landscape', resolution_preset: known ? res : 'custom' };
+  const out = { orientation: (screen && screen.orientation) || 'landscape', resolution_preset: known ? res : 'custom',
+    fullscreen: screen ? screen.fullscreen !== false : true };
   if (!known) {
     const [w, hgt] = res.split('x').map(Number);
     out.res_w = w; out.res_h = hgt;
@@ -234,14 +237,16 @@ export async function openScreenDetail(id, onChange) {
 function displayConfigured(s) {
   const res = s.resolution === 'auto' ? 'resolução automática' : `${s.resolution.replace('x', '×')}`;
   return [ORIENTATIONS[s.orientation] || s.orientation, res, s.screen_inches ? `${s.screen_inches}"` : null,
-    s.safe_margin_percent ? `margem ${s.safe_margin_percent}%` : null].filter(Boolean).join(' · ');
+    s.safe_margin_percent ? `margem ${s.safe_margin_percent}%` : null, s.fullscreen === false ? 'sem tela cheia' : 'tela cheia']
+    .filter(Boolean).join(' · ');
 }
 
 function displayDetected(d) {
   if (!d || !d.viewport) return null;
   const phys = d.dpr ? ` (≈ ${Math.round(d.viewport[0] * d.dpr)}×${Math.round(d.viewport[1] * d.dpr)} px físicos)` : '';
   const stage = d.logical ? ` · palco ${d.logical[0]}×${d.logical[1]}, escala ${d.scale}` : '';
-  return `navegador ${d.viewport[0]}×${d.viewport[1]} · DPR ${d.dpr}${phys} · aparelho em ${d.device_orientation || '?'}${stage}`;
+  const client = d.client === 'app' ? `app ${d.app || ''} · ${d.device || ''} · Android ${d.android || '?'} · ` : (d.client ? 'navegador · ' : '');
+  return `${client}${d.viewport[0]}×${d.viewport[1]} px · DPR ${d.dpr}${phys} · aparelho em ${d.device_orientation || '?'}${stage}`;
 }
 
 function infoPane(s) {
@@ -326,6 +331,35 @@ async function historyPane(s) {
       h('td', { class: 'error-text small' }, r.error || ''))))));
 }
 
+/** Instruções do app Android TV: download do APK e instalação pela rede, sem usar o navegador da TV. */
+export function openAppInfo() {
+  const apk = `${location.origin}/app/updown-digital.apk`;
+  const code = (txt) => h('pre', { class: 'mono small', style: 'margin:0; padding:10px; background:var(--bg); border:1px solid var(--border); border-radius:8px; white-space:pre-wrap; word-break:break-all' }, txt);
+  modal({
+    title: 'App Android TV — UpDown Digital', wide: true,
+    body: h('div', { class: 'stack' },
+      h('p', { style: 'margin:0' }, 'O app abre sozinho o player (sempre a mesma URL), em tela cheia, ao ligar a TV. ',
+        'Não é preciso abrir o navegador nem digitar endereço. Depois de instalado, a TV mostra o código de ativação: ',
+        'ative em ', h('b', null, 'Ativar TV'), ' e defina orientação, resolução e tela cheia aqui no gerenciador.'),
+      h('div', null, h('a', { class: 'btn primary', href: apk, download: 'updown-digital.apk' }, 'Baixar APK'),
+        h('span', { class: 'muted small', style: 'margin-left:10px' }, apk)),
+      h('h3', { style: 'margin:8px 0 0' }, '1. Instalação pela rede (recomendada)'),
+      h('p', { class: 'small', style: 'margin:0' }, 'Na TV: Configurações → Preferências do dispositivo → Sobre → clique 7 vezes em "Build" para liberar as opções do desenvolvedor; ',
+        'depois ative "Depuração USB/ADB" e "Depuração pela rede" e anote o IP da TV. Em um computador com ADB (ou no próprio servidor):'),
+      code(`scripts/instalar_tv.sh IP_DA_TV --quiosque`),
+      h('p', { class: 'small muted', style: 'margin:0' }, 'O script instala o app, libera a abertura automática ao ligar, desativa o protetor de tela e abre o player. ',
+        'Com --quiosque o app vira a tela inicial da TV. Sem o script, os comandos equivalentes são:'),
+      code(`adb connect IP_DA_TV:5555
+adb install -r updown-digital.apk
+adb shell appops set br.com.updown.digital SYSTEM_ALERT_WINDOW allow
+adb shell am start -n br.com.updown.digital/.MainActivity`),
+      h('h3', { style: 'margin:8px 0 0' }, '2. Pen drive'),
+      h('p', { class: 'small', style: 'margin:0' }, 'Copie o APK para um pen drive e abra-o na TV com um gerenciador de arquivos (permita "fontes desconhecidas"). ',
+        'Depois abra o app UpDown Digital uma vez.'),
+      h('div', { class: 'alert small' }, 'Para sair do app na manutenção, pressione VOLTAR 5 vezes seguidas.')),
+  });
+}
+
 export async function render(root) {
   const groups = await get('/groups');
   const q = h('input', { type: 'search', placeholder: 'Buscar nome, identificação, local…' });
@@ -336,7 +370,8 @@ export async function render(root) {
   const tableWrap = h('div');
 
   const actions = session.can('admin')
-    ? [btn('Ativar TV', () => openActivation(load).catch(toastError), { cls: 'primary', ico: 'key' }),
+    ? [btn('App Android TV', () => openAppInfo(), { ico: 'tv' }),
+      btn('Ativar TV', () => openActivation(load).catch(toastError), { cls: 'primary', ico: 'key' }),
       btn('Nova TV', () => openScreenForm(null, load).catch(toastError), { ico: 'plus' })]
     : [];
   clear(root,
