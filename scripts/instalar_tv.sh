@@ -65,6 +65,13 @@ for target in "${TARGETS[@]}"; do
 
   # abre sozinho ao ligar a TV (Android 10+ exige esta liberação)
   run appops set "$PKG" SYSTEM_ALERT_WINDOW allow 2>/dev/null || true
+  # ligar/desligar pelo gerenciador: apagar a tela (espera) e religar no horário exato
+  if run dpm set-active-admin "$PKG/.PowerAdminReceiver" >/dev/null 2>&1; then
+    echo "Controle de energia: ativado."
+  else
+    echo "Aviso: controle de energia não liberado; ao 'desligar', a TV exibirá tela preta."
+  fi
+  run appops set "$PKG" SCHEDULE_EXACT_ALARM allow 2>/dev/null || true
 
   if [ "$TWEAKS" = 1 ]; then
     echo "Desativando protetor de tela e suspensão..."

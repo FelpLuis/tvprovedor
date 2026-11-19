@@ -53,6 +53,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        allowWakeOverLock()
         container = FrameLayout(this).apply { setBackgroundColor(Color.rgb(20, 0, 88)) }
         setContentView(container)
         createWebView()
@@ -185,6 +186,32 @@ class MainActivity : Activity() {
 
     fun reloadPlayer() = handler.post { loadPlayer() }
 
+    /** Permite que o app acenda a tela ao sair da espera. */
+    private fun allowWakeOverLock() {
+        if (Build.VERSION.SDK_INT >= 27) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+            )
+        }
+    }
+
+    /** Espera definida pelo gerenciador/horário (o player já mostra a tela preta). */
+    fun setStandby(standby: Boolean, nextOnMs: Long) {
+        if (standby) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            PowerController.standby(this, nextOnMs)
+        } else {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            if (PowerController.isStandby(this)) PowerController.wake(this)
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)
@@ -198,6 +225,12 @@ class MainActivity : Activity() {
     }
 
     private fun handleIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra("wake", false) == true) {
+            intent.removeExtra("wake")
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            // pede ao player que consulte o servidor imediatamente
+            webView?.evaluateJavascript("window.__udsWake && window.__udsWake()", null)
+        }
         val url = intent?.getStringExtra("url") ?: return
         intent.removeExtra("url")
         if (url.startsWith("https://")) {

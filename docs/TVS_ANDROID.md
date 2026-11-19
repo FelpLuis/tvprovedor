@@ -1,5 +1,22 @@
 # Configuração das TVs Android
 
+## Como a TV se comunica com o gerenciador
+
+**É sempre a TV que chama o servidor**, nunca o contrário. O player (no app ou no navegador) faz
+requisições HTTPS para `https://tv.updown.com.br`:
+
+- a cada 30 s (heartbeat): informa o estado e recebe comandos, mudanças de programação, tela,
+  energia e volume;
+- em espera, o app consulta a cada 1 min se deve religar.
+
+Por isso as TVs podem estar em **qualquer rede** (outra rede da empresa, outra filial, 4G): basta
+terem acesso à internet e conseguirem abrir `tv.updown.com.br` na porta 443. O servidor não precisa
+de SSH, VPN, IP das TVs nem porta aberta para elas, e um firewall/NAT na rede das TVs não atrapalha.
+
+A única etapa que precisa estar **na mesma rede da TV** é a instalação do app pela rede
+(`scripts/instalar_tv.sh`, via ADB), feita uma única vez de um notebook conectado à rede das TVs.
+Sem notebook, instale por pen drive. Depois de instalado, tudo é feito pelo gerenciador.
+
 ## App UpDown Digital (recomendado)
 
 O app Android TV (`br.com.updown.digital`) abre sozinho **sempre a mesma URL** do player
@@ -22,7 +39,7 @@ Requisitos: Android 5.0 ou superior (TVs, TV boxes e monitores Android).
 1. Na TV: **Configurações → Preferências do dispositivo → Sobre** e clique 7 vezes em **Build**
    para liberar as opções do desenvolvedor. Em **Opções do desenvolvedor**, ative **Depuração USB**
    e **Depuração pela rede/ADB pela rede**. Anote o IP da TV (Configurações → Rede).
-2. Em um computador com `adb` na mesma rede (ou no servidor, após instalar o pacote `adb`):
+2. Em um computador com `adb` **conectado à mesma rede das TVs** (um notebook, por exemplo):
 
    ```bash
    scripts/instalar_tv.sh 192.168.0.50 --quiosque
@@ -109,6 +126,33 @@ Na própria TV:
 3. Escolha **Cadastrar nova TV** (nome, grupo, perfil, playlist ou dashboard) ou **Vincular a uma
    TV já cadastrada** (útil para trocar o aparelho mantendo a configuração).
 4. Em até 5 segundos a TV recebe o token e começa a baixar e reproduzir o conteúdo.
+
+## Ligar, desligar e volume
+
+Em **TVs → detalhes → Energia e som**:
+
+- **Ligar agora / Desligar agora**: aplicado em até 1 minuto. Vale até a próxima mudança do
+  horário de funcionamento (ou até **Voltar ao automático**, se a TV não tiver horário).
+- **Horário de funcionamento**: faixas por dia da semana (ex.: seg–sex 07:00–19:00, sáb
+  08:00–12:00). Fora das faixas a TV fica em espera. Faixas como 18:00 → 02:00 atravessam a
+  meia-noite. Fuso: `America/Sao_Paulo` (`UDS_TIMEZONE`).
+- **Volume**: define o volume do aparelho (0–100%).
+- Em **Grupos**, os botões **Ligar/Desligar** aplicam a todas as TVs do grupo.
+
+O que "desligar" faz em cada caso:
+
+| Situação | Resultado |
+|---|---|
+| App com controle de energia liberado (script de instalação) | Aparelho em **espera** (tela apagada). Em TV box ligada por HDMI com **CEC** ativo, a TV também entra em espera. |
+| App sem o controle liberado, ou navegador | **Tela preta**, sem reproduzir (a tela continua acesa). |
+
+Religar: o app guarda o próximo horário de ligar e **acorda sozinho** nesse horário, mesmo se a
+rede cair durante a espera; "Ligar agora" chega pela consulta de 1 minuto.
+
+Limites: uma TV **desligada da tomada** (ou desligada totalmente pelo botão, sem modo de espera)
+não pode ser ligada por software, porque fica sem rede. Algumas TVs desligam o Wi-Fi em espera;
+nesse caso "Ligar agora" só funciona com cabo de rede, mas o horário programado continua
+funcionando. Confira em **Energia e som → Controle de energia** o que cada TV suporta.
 
 ## Orientação, resolução e tamanho da tela
 

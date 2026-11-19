@@ -133,6 +133,10 @@ def display_payload(screen: Screen) -> Dict[str, Any]:
     }
 
 
+def audio_payload(screen: Screen) -> Dict[str, Any]:
+    return {"volume": screen.volume}
+
+
 def player_config(screen: Screen) -> Dict[str, Any]:
     """Configuração completa enviada ao player. O hash ignora as URLs assinadas (que mudam)."""
     s = get_settings()
@@ -147,6 +151,7 @@ def player_config(screen: Screen) -> Dict[str, Any]:
         },
         "heartbeat_interval": s.heartbeat_interval_seconds,
         "display": display_payload(screen),
+        "audio": audio_payload(screen),
         "mode": "idle",
         "playlist": None,
         "dashboard": None,
@@ -195,8 +200,11 @@ def screen_to_out(screen: Screen) -> Dict[str, Any]:
     from app.schemas.screens import ScreenOut
 
     cfg_hash = player_config(screen)["config_hash"] if screen.token_hash else None
+    from app.services.power import evaluate
+
     data = ScreenOut.model_validate(
         {
+            "power": evaluate(screen).as_dict(),
             **{c.name: getattr(screen, c.name) for c in Screen.__table__.columns},
             "group": screen.group,
             "playlist": screen.playlist,
