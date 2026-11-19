@@ -79,3 +79,5 @@ h1 { font-size: calc(var(--vmin) * 4.5); font-weight: 500; margin: 0 0 calc(var(
   background: rgba(17, 1, 112, .95); border: 2px solid #9b00ff; max-width: 90%; }
 .identify-title { font-size: calc(var(--vmin) * 6); font-weight: 700; color: #00ceff; margin-bottom: calc(var(--vmin) * 1.5); }
 .identify-box pre { margin: 0; font: calc(var(--vmin) * 2.6)/1.5 ui-monospace, monospace; white-space: pre-wrap; text-align: left; }
+
+.standby { position: fixed; inset: 0; background: #000; z-index: 30; }

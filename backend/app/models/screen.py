@@ -56,6 +56,14 @@ class Screen(Base):
     # tela cheia/quiosque (aplicada pelo app Android; no navegador depende de um toque em OK)
     fullscreen: Mapped[bool] = mapped_column(Boolean, default=True, server_default=sa_true())
 
+    # Energia e som
+    # {"enabled": bool, "slots": [{"days": [0..6 (seg..dom)], "on": "07:00", "off": "19:00"}]}
+    power_schedule: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    power_override: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)       # on | off
+    power_override_base: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)  # estado do horário no comando
+    power_override_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime, nullable=True)
+    volume: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 0-100; None = não controlar
+
     # Autenticação do dispositivo (hash do token, nunca o token em si)
     token_hash: Mapped[Optional[str]] = mapped_column(String(64), unique=True, nullable=True)
     token_expires_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime, nullable=True)

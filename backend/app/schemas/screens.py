@@ -48,6 +48,42 @@ class GroupOut(ORMModel):
     created_at: datetime
 
 
+HHMM = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"
+
+
+class PowerSlot(BaseModel):
+    days: List[int] = Field(min_length=1, max_length=7)  # 0 = segunda ... 6 = domingo
+    on: str = Field(pattern=HHMM)
+    off: str = Field(pattern=HHMM)
+
+    @field_validator("days")
+    @classmethod
+    def _days(cls, v: List[int]) -> List[int]:
+        if any(d < 0 or d > 6 for d in v):
+            raise ValueError("Dias devem ser de 0 (segunda) a 6 (domingo)")
+        return sorted(set(v))
+
+    @field_validator("off")
+    @classmethod
+    def _diff(cls, v: str, info) -> str:
+        if info.data.get("on") == v:
+            raise ValueError("Horário de desligar deve ser diferente do de ligar")
+        return v
+
+
+class PowerSchedule(BaseModel):
+    enabled: bool = False
+    slots: List[PowerSlot] = Field(default_factory=list, max_length=14)
+
+
+class PowerAction(BaseModel):
+    action: str = Field(pattern=r"^(on|off|auto)$")
+
+
+class VolumeIn(BaseModel):
+    volume: Optional[int] = Field(default=None, ge=0, le=100)  # None = não controlar
+
+
 class ScreenBase(BaseModel):
     identifier: str = Field(pattern=IDENTIFIER_PATTERN)
     name: str = Field(min_length=1, max_length=120)
@@ -116,6 +152,10 @@ class ScreenOut(ORMModel):
     screen_inches: Optional[int]
     safe_margin_percent: int
     fullscreen: bool
+    power_schedule: Optional[Dict[str, Any]]
+    power_override: Optional[str]
+    volume: Optional[int]
+    power: Optional[Dict[str, Any]] = None
     display_info: Optional[Dict[str, Any]]
     config_hash: Optional[str] = None
     applied_config_hash: Optional[str]

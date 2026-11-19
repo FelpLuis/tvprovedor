@@ -48,6 +48,8 @@ Cada TV tem **um perfil fixo**:
 - **Auditoria** de todas as alterações, logins e comandos.
 - **Tela por TV**: paisagem/retrato, resolução de exibição, polegadas, margem de segurança e tela
   cheia, tudo definido no gerenciador.
+- **Energia e som**: ligar/desligar agora (por TV ou grupo), horário de funcionamento e volume.
+  As TVs sempre chamam o servidor (HTTPS), então funcionam em qualquer rede, sem SSH ou VPN.
 - **App Android TV** com a URL única embutida: abre sozinho ao ligar a TV, em tela cheia, e é
   instalado pela rede com `scripts/instalar_tv.sh`, sem abrir o navegador da TV.
 

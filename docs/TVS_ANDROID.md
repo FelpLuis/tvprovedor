@@ -1,5 +1,22 @@
 # Configuração das TVs Android
 
+## Como a TV se comunica com o gerenciador
+
+**É sempre a TV que chama o servidor**, nunca o contrário. O player (no app ou no navegador) faz
+requisições HTTPS para `https://tv.updown.com.br`:
+
+- a cada 30 s (heartbeat): informa o estado e recebe comandos, mudanças de programação, tela,
+  energia e volume;
+- em espera, o app consulta a cada 1 min se deve religar.
+
+Por isso as TVs podem estar em **qualquer rede** (outra rede da empresa, outra filial, 4G): basta
+terem acesso à internet e conseguirem abrir `tv.updown.com.br` na porta 443. O servidor não precisa
+de SSH, VPN, IP das TVs nem porta aberta para elas, e um firewall/NAT na rede das TVs não atrapalha.
+
+A instalação é feita uma única vez na própria TV (app Downloader ou pen drive), sem ADB e sem
+depender do IP. Depois disso, tudo — programação, tela, energia, volume e até a atualização do
+app — é feito pelo gerenciador.
+
 ## App UpDown Digital (recomendado)
 
 O app Android TV (`br.com.updown.digital`) abre sozinho **sempre a mesma URL** do player
@@ -17,47 +34,52 @@ navegador ou digitar nada na TV. Ele:
 
 Requisitos: Android 5.0 ou superior (TVs, TV boxes e monitores Android).
 
-### Instalação pela rede, sem mexer na TV (recomendada)
+### Instalação (uma única vez, sem ADB)
 
-1. Na TV: **Configurações → Preferências do dispositivo → Sobre** e clique 7 vezes em **Build**
-   para liberar as opções do desenvolvedor. Em **Opções do desenvolvedor**, ative **Depuração USB**
-   e **Depuração pela rede/ADB pela rede**. Anote o IP da TV (Configurações → Rede).
-2. Em um computador com `adb` na mesma rede (ou no servidor, após instalar o pacote `adb`):
+O IP da TV **não importa**: depois de instalado, o app é que se conecta ao servidor pela internet.
+IP dinâmico, outra rede ou outra filial funcionam normalmente.
 
-   ```bash
-   scripts/instalar_tv.sh 192.168.0.50 --quiosque
-   ```
+1. **Instalar o APK** na TV, de um destes jeitos:
+   - **App Downloader** (gratuito, na Play Store da TV): abra e digite o endereço curto
+     `tv.updown.com.br/apk`; ao terminar o download, toque em **Instalar** (permita "fontes
+     desconhecidas" para o Downloader, se pedido);
+   - **Pen drive**: baixe o APK em **TVs → App Android TV → Baixar APK**, copie para o pen drive e
+     abra na TV com um gerenciador de arquivos.
+2. **Abrir o app UpDown Digital.** Um assistente pede, pelo controle remoto, as permissões para:
+   abrir sozinho ao ligar a TV, ligar/desligar pelo gerenciador (espera), religar no horário exato,
+   instalar as próprias atualizações e virar a tela inicial (modo quiosque). Confirme cada uma com
+   **OK**. Se alguma for recusada, envie o comando **Configurar app na TV** nos detalhes da TV; o
+   painel mostra as permissões pendentes em *Tela detectada*.
+3. **Ativar no gerenciador:** a TV mostra o código; use **TVs → Ativar TV**.
 
-   Vários IPs de uma vez também funcionam. Na primeira conexão a TV pede para autorizar a
-   depuração: confirme com **Sempre permitir**.
-3. O script baixa o app de `https://tv.updown.com.br/app/updown-digital.apk`, instala, libera a
-   abertura automática ao ligar, desativa protetor de tela e suspensão, ativa o modo quiosque
-   (`--quiosque`) e abre o player. A TV mostra o código de ativação.
-4. No painel: **TVs → Ativar TV**, informe o código e defina orientação, resolução e tela cheia.
+### Atualização do app (automática)
 
-Opções do script: `--apk arquivo.apk` (usar um APK local), `--servidor https://...` (outro
-servidor, ex.: homologação) e `--sem-ajustes` (não mexer em protetor de tela/suspensão).
+O app consulta `https://tv.updown.com.br/app/version.json` ao abrir e a cada 6 horas. Havendo
+versão nova, baixa o APK, confere o SHA-256 e instala por cima (algumas TVs pedem um **OK** na
+tela). Para forçar, envie o comando **Atualizar app**. O resultado aparece nos detalhes da TV.
 
-### Instalação por pen drive
-
-Baixe o APK em **TVs → App Android TV → Baixar APK**, copie para um pen drive e abra-o na TV com
-um gerenciador de arquivos (permita "fontes desconhecidas"). Abra o app uma vez. Para abrir
-sozinho ao ligar em Android 10 ou superior, use a instalação pela rede (que libera essa permissão)
-ou defina o app como tela inicial.
-
-### Atualização do app
-
-Instale o APK novo por cima (`scripts/instalar_tv.sh IP` de novo ou pen drive). Todas as versões
-são assinadas com a mesma chave do projeto (`android/keystore/`), então não é preciso desinstalar.
-
-Para compilar o app (Android SDK e JDK 17+), em `android/`:
+Para publicar uma versão nova: aumente `versionCode`/`versionName` em `android/app/build.gradle.kts`
+e, em `android/`, rode:
 
 ```bash
-./gradlew assembleRelease
+./gradlew publishApk
 ```
 
-O APK gerado fica em `android/app/build/outputs/apk/release/app-release.apk`; copie-o para
-`frontend/app/updown-digital.apk` para o servidor oferecê-lo para download.
+Isso compila, copia o APK para `frontend/app/updown-digital.apk` e gera `frontend/app/version.json`.
+Depois do commit e da atualização do servidor, as TVs se atualizam sozinhas. Todas as versões são
+assinadas com a chave do projeto (`android/keystore/`), por isso instalam por cima sem desinstalar.
+
+### Instalação em lote por ADB (opcional)
+
+Só para preparar muitas TVs de uma vez, num notebook **na mesma rede das TVs**, durante a
+instalação (depois o ADB não é mais necessário):
+
+```bash
+scripts/instalar_tv.sh 192.168.0.50 192.168.0.51 --quiosque
+```
+
+Requer, na TV, as opções do desenvolvedor com "Depuração USB" e "Depuração pela rede". O script
+instala o app, libera as mesmas permissões do assistente e desativa protetor de tela/suspensão.
 
 ## Navegador (alternativa)
 
@@ -109,6 +131,33 @@ Na própria TV:
 3. Escolha **Cadastrar nova TV** (nome, grupo, perfil, playlist ou dashboard) ou **Vincular a uma
    TV já cadastrada** (útil para trocar o aparelho mantendo a configuração).
 4. Em até 5 segundos a TV recebe o token e começa a baixar e reproduzir o conteúdo.
+
+## Ligar, desligar e volume
+
+Em **TVs → detalhes → Energia e som**:
+
+- **Ligar agora / Desligar agora**: aplicado em até 1 minuto. Vale até a próxima mudança do
+  horário de funcionamento (ou até **Voltar ao automático**, se a TV não tiver horário).
+- **Horário de funcionamento**: faixas por dia da semana (ex.: seg–sex 07:00–19:00, sáb
+  08:00–12:00). Fora das faixas a TV fica em espera. Faixas como 18:00 → 02:00 atravessam a
+  meia-noite. Fuso: `America/Sao_Paulo` (`UDS_TIMEZONE`).
+- **Volume**: define o volume do aparelho (0–100%).
+- Em **Grupos**, os botões **Ligar/Desligar** aplicam a todas as TVs do grupo.
+
+O que "desligar" faz em cada caso:
+
+| Situação | Resultado |
+|---|---|
+| App com controle de energia liberado (script de instalação) | Aparelho em **espera** (tela apagada). Em TV box ligada por HDMI com **CEC** ativo, a TV também entra em espera. |
+| App sem o controle liberado, ou navegador | **Tela preta**, sem reproduzir (a tela continua acesa). |
+
+Religar: o app guarda o próximo horário de ligar e **acorda sozinho** nesse horário, mesmo se a
+rede cair durante a espera; "Ligar agora" chega pela consulta de 1 minuto.
+
+Limites: uma TV **desligada da tomada** (ou desligada totalmente pelo botão, sem modo de espera)
+não pode ser ligada por software, porque fica sem rede. Algumas TVs desligam o Wi-Fi em espera;
+nesse caso "Ligar agora" só funciona com cabo de rede, mas o horário programado continua
+funcionando. Confira em **Energia e som → Controle de energia** o que cada TV suporta.
 
 ## Orientação, resolução e tamanho da tela
 

@@ -42,6 +42,15 @@ async function showScreens(group) {
   });
 }
 
+async function groupPower(g, action) {
+  const label = action === 'on' ? 'ligar' : 'desligar';
+  if (!await confirmDialog(`${action === 'on' ? 'Ligar' : 'Desligar'} grupo`, `Deseja ${label} as ${g.screen_count} TV(s) do grupo ${g.name}? Vale até a próxima mudança do horário de funcionamento de cada TV.`)) return;
+  try {
+    const r = await post(`/groups/${g.id}/power`, { action });
+    toast(`${r.screens} TV(s): comando enviado. Aplicado em até 1 minuto.`, 'success');
+  } catch (e) { toastError(e); }
+}
+
 export async function render(root) {
   const wrap = h('div');
   clear(root,
@@ -65,6 +74,8 @@ export async function render(root) {
         h('td', null, g.playlist ? g.playlist.name : '—'),
         h('td', { class: 'nowrap', style: 'text-align:right' },
           session.can('operator') ? btn('Programação', () => openGroupPlaylist(g, load).catch(toastError), { cls: 'sm' }) : null, ' ',
+          session.can('operator') ? btn('Ligar', () => groupPower(g, 'on'), { cls: 'sm', disabled: !g.screen_count }) : null, ' ',
+          session.can('operator') ? btn('Desligar', () => groupPower(g, 'off'), { cls: 'sm', disabled: !g.screen_count }) : null, ' ',
           session.can('admin') ? btn('Editar', () => openGroupForm(g, load).catch(toastError), { cls: 'sm' }) : null, ' ',
           session.can('admin') ? btn('Excluir', async () => {
             if (!await confirmDialog('Excluir grupo', `Excluir o grupo ${g.name}?`, { danger: true, okLabel: 'Excluir' })) return;

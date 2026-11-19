@@ -37,7 +37,10 @@
     heartbeatInterval: 30,
     startedAt: new Date(),
     lastHeartbeatAt: null,
-    downloadProgress: null
+    downloadProgress: null,
+    poweredOff: false,
+    lastPower: null,
+    mediaVolume: 1
   };
 
   // ---------------------------------------------------------------- utilidades
@@ -90,7 +93,7 @@
   }
 
   function show(id) {
-    ['stage', 'dashboard', 'activation', 'message'].forEach(function (s) {
+    ['stage', 'dashboard', 'activation', 'message', 'standby'].forEach(function (s) {
       $(s).classList.toggle('hidden', s !== id);
     });
   }
@@ -218,6 +221,70 @@
     identifyTimer = setTimeout(function () { $('identify').classList.add('hidden'); }, (seconds || 30) * 1000);
   }
 
+  // ---------------------------------------------------------------- energia e som
+
+  function nativeCall(name) {
+    if (!NATIVE || typeof NATIVE[name] !== 'function') { return undefined; }
+    try { return NATIVE[name].apply(NATIVE, [].slice.call(arguments, 1)); } catch (e) { return undefined; }
+  }
+
+  /** O app guarda o token para consultar o servidor enquanto a tela estiver apagada. */
+  function shareCredentials() {
+    if (state.token) { nativeCall('setCredentials', state.token, location.origin); }
+  }
+
+  function applyAudio(audio) {
+    var vol = audio && typeof audio.volume === 'number' ? audio.volume : null;
+    if (NATIVE && typeof NATIVE.setVolume === 'function') {
+      state.mediaVolume = 1;  // o app ajusta o volume do aparelho
+      if (vol !== null) { nativeCall('setVolume', vol); }
+    } else {
+      state.mediaVolume = vol === null ? 1 : vol / 100;
+    }
+    var v = document.querySelector('.layer video');
+    if (v) { v.volume = state.mediaVolume; }
+  }
+
+  /** Estado de energia vindo do servidor (gerenciador ou horário de funcionamento). */
+  function applyPower(p) {
+    state.lastPower = p;
+    if (p.state === 'off') {
+      // atualiza no app o horário para religar sozinho (funciona mesmo sem rede)
+      nativeCall('setPower', false, p.next_on_ms || 0);
+      if (!state.poweredOff) {
+        state.poweredOff = true;
+        state.reportSoon = true;
+        log('energia: espera —', p.reason);
+        stopAll();
+        show('standby');
+        state.playbackState = 'standby';
+        state.currentContent = null;
+      }
+    } else if (state.poweredOff) {
+      state.poweredOff = false;
+      state.reportSoon = true;
+      log('energia: ligada —', p.reason);
+      nativeCall('setPower', true, 0);
+      if (state.config) { applyConfig(state.config); } else { boot(); }
+    }
+  }
+
+  function displayReport() {
+    var r = {};
+    var k;
+    for (k in state.display) { if (state.display.hasOwnProperty(k)) { r[k] = state.display[k]; } }
+    r.power = state.poweredOff ? 'off' : 'on';
+    var vol = nativeCall('getVolume');
+    if (typeof vol === 'number' && vol >= 0) { r.volume = vol; }
+    var ctl = nativeCall('getPowerControl');
+    if (ctl) { r.power_control = ctl; }
+    var setupStatus = nativeCall('getSetupStatus');
+    if (setupStatus) { r.setup = String(setupStatus); }
+    var upd = nativeCall('getUpdateStatus');
+    if (upd) { r.update = String(upd); }
+    return r;
+  }
+
   // ---------------------------------------------------------------- mensagens / relógio
 
   var clockTimer = null;
@@ -288,6 +355,7 @@
           lsDel(LS_PAIRING);
           state.token = data.token;
           lsSet(LS_TOKEN, data.token);
+          shareCredentials();
           $('activation-status').textContent = 'TV ativada: ' + data.screen.name;
           setTimeout(boot, 800);
         } else {
@@ -446,6 +514,7 @@
     v.controls = false;
     v.disablePictureInPicture = true;
     v.muted = false;
+    v.volume = state.mediaVolume;
     var started = false;
     var lastTime = -1;
     var stalledFor = 0;
@@ -550,6 +619,14 @@
     stopAll();
     if (cfg.display) { lsSet(LS_DISPLAY, JSON.stringify(cfg.display)); }
     applyDisplay();
+    applyAudio(cfg.audio);
+    if (state.poweredOff) {
+      // em espera: guarda a configuração, mas não reproduz nada até a TV ser ligada
+      show('standby');
+      state.playbackState = 'standby';
+      renderInfo();
+      return;
+    }
     if (cfg.mode === 'media') {
       startMedia(cfg.playlist);
       MediaCache.releaseUnused(playlistShas(cfg));
@@ -662,7 +739,7 @@
         config_hash: state.config ? state.config.config_hash : null,
         error: state.lastError,
         storage: storage,
-        display: state.display
+        display: displayReport()
       };
       if (state.downloadProgress) { body.storage = Object.assign({}, storage || {}, { downloading: state.downloadProgress }); }
       return request('POST', '/heartbeat', body);
@@ -676,7 +753,9 @@
         // renovação: o novo token passa a valer no primeiro uso
         state.token = resp.new_token;
         lsSet(LS_TOKEN, resp.new_token);
+        shareCredentials();
       }
+      if (resp.power) { applyPower(resp.power); }
       var cmds = resp.commands || [];
       cmds.forEach(runCommand);
       var hash = state.config ? state.config.config_hash : null;
@@ -684,7 +763,9 @@
       if (resp.config_hash !== hash && resp.config_hash !== pendingHash) {
         sync(false).catch(function () { /* tratado em sync */ });
       }
-      scheduleHeartbeat();
+      // confirma logo ao painel quando a TV liga ou entra em espera
+      scheduleHeartbeat(state.reportSoon ? 3 : undefined);
+      state.reportSoon = false;
     }).catch(function (err) {
       if (handleAuthError(err)) { return; }
       state.failedHeartbeats += 1;
@@ -716,6 +797,21 @@
         break;
       case 'reload_page':
         ack(cmd, true, 'recarregando página').then(function () { location.reload(); });
+        break;
+      case 'update_app':
+        if (NATIVE && typeof NATIVE.checkUpdate === 'function') {
+          ack(cmd, true, nativeCall('checkUpdate') + ' (resultado aparece nos detalhes da TV)');
+        } else {
+          ack(cmd, false, 'disponível apenas no app UpDown Digital');
+        }
+        break;
+      case 'app_setup':
+        if (NATIVE && typeof NATIVE.runSetup === 'function') {
+          nativeCall('runSetup');
+          ack(cmd, true, 'assistente aberto na TV');
+        } else {
+          ack(cmd, false, 'disponível apenas no app UpDown Digital');
+        }
         break;
       case 'identify':
         showIdentify(30);
@@ -821,6 +917,7 @@
   function boot() {
     state.token = lsGet(LS_TOKEN);
     if (!state.token) { startActivation(); return; }
+    shareCredentials();
     var stored = null;
     try { stored = JSON.parse(lsGet(LS_CONFIG) || 'null'); } catch (e) { stored = null; }
 
@@ -839,6 +936,9 @@
       if (state.token) { scheduleHeartbeat(2); }
     });
   }
+
+  // chamado pelo app Android ao acender a tela (horário ou "Ligar agora")
+  window.__udsWake = function () { scheduleHeartbeat(1); };
 
   setupUi();
   MediaCache.requestPersistence();

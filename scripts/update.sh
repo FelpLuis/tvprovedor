@@ -11,16 +11,16 @@ USER_NAME="updown-digital"
 
 [ -r "$BASE/.env" ] || { echo "Arquivo $BASE/.env não encontrado"; exit 1; }
 cd "$APP"
-PREV="$(git rev-parse HEAD)"
+PREV="$(sudo -u "$USER_NAME" git -C "$APP" rev-parse HEAD)"
 echo "Versão atual: $PREV"
 
 echo "1/6 Backup..."
 "$APP/scripts/backup.sh"
 
 echo "2/6 Atualizando código ($BRANCH)..."
-sudo -u "$USER_NAME" git fetch origin "$BRANCH"
-sudo -u "$USER_NAME" git merge --ff-only "origin/$BRANCH"
-echo "Nova versão: $(git rev-parse HEAD)"
+sudo -u "$USER_NAME" git -C "$APP" fetch origin "$BRANCH"
+sudo -u "$USER_NAME" git -C "$APP" merge --ff-only "origin/$BRANCH"
+echo "Nova versão: $(sudo -u "$USER_NAME" git -C "$APP" rev-parse HEAD)"
 
 echo "3/6 Dependências..."
 sudo -u "$USER_NAME" "$VENV/bin/pip" install --quiet -r backend/requirements.txt

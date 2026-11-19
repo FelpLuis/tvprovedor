@@ -262,6 +262,8 @@ export function suggestResolution(inches) {
   return 'Sugestão para ' + inches + '": Full HD 1920×1080 para dashboards legíveis, ou 4K 3840×2160 para conteúdo em 4K.';
 }
 
+export const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+
 export const DASH_KINDS = { grafana: 'Grafana', powerbi: 'Power BI', zabbix: 'Zabbix', updown_bi: 'UpDown BI', other: 'Outro' };
 export const ROLES = { admin: 'Administrador', operator: 'Operador', viewer: 'Visualizador' };
 export const COMMANDS = {
@@ -271,16 +273,19 @@ export const COMMANDS = {
   reload_page: 'Recarregar player',
   clear_cache: 'Limpar cache local',
   identify: 'Identificar tela',
+  update_app: 'Atualizar app',
+  app_setup: 'Configurar app na TV',
 };
 export const PLAYBACK = {
   playing: 'Reproduzindo', idle: 'Ocioso', loading: 'Carregando', error: 'Erro',
-  offline_cache: 'Offline (cache)', redirect: 'Redirecionado',
+  offline_cache: 'Offline (cache)', redirect: 'Redirecionado', standby: 'Em espera',
 };
 
 export function statusBadge(screen) {
   if (!screen.activated) return h('span', { class: 'badge warning' }, h('span', { class: 'dot' }), 'Não ativada');
   if (screen.status === 'disabled') return h('span', { class: 'badge' }, h('span', { class: 'dot' }), 'Desativada');
   if (!screen.online) return h('span', { class: 'badge danger' }, h('span', { class: 'dot' }), 'Offline');
+  if (screen.power && screen.power.state === 'off') return h('span', { class: 'badge' }, h('span', { class: 'dot' }), 'Em espera');
   if (screen.last_error) return h('span', { class: 'badge warning' }, h('span', { class: 'dot' }), 'Online com erro');
   return h('span', { class: 'badge success' }, h('span', { class: 'dot' }), 'Online');
 }

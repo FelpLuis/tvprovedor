@@ -91,6 +91,11 @@ def create_app() -> FastAPI:
     app.mount("/player", StaticFiles(directory=frontend / "player", html=True), name="player")
     # APK do app Android TV, baixado pelo instalador/TV (não contém segredos)
     mimetypes.add_type("application/vnd.android.package-archive", ".apk")
+    @app.get("/apk", include_in_schema=False)
+    def apk_short_url():
+        # endereço curto para instalar pela TV (app Downloader): tv.updown.com.br/apk
+        return RedirectResponse("/app/updown-digital.apk")
+
     if (frontend / "app").is_dir():
         app.mount("/app", StaticFiles(directory=frontend / "app"), name="android-app")
     app.mount("/", StaticFiles(directory=frontend / "admin", html=True), name="admin")

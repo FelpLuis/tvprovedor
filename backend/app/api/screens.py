@@ -28,11 +28,15 @@ from app.schemas.screens import (
     CommandOut,
     HeartbeatOut,
     PendingActivation,
+    PowerAction,
+    PowerSchedule,
+    VolumeIn,
     ScreenCreate,
     ScreenOut,
     ScreenUpdate,
 )
 from app.services import audit
+from app.services.power import set_override
 from app.services.screens import is_online, screen_to_out
 
 router = APIRouter(prefix="/screens", tags=["screens"])
@@ -247,6 +251,49 @@ def delete_screen(screen_id: int, request: Request, db: Session = Depends(get_db
                  details={"identifier": screen.identifier, "name": screen.name})
     db.delete(screen)
     db.commit()
+
+
+@router.put("/{screen_id}/power-schedule", response_model=ScreenOut)
+def set_power_schedule(screen_id: int, data: PowerSchedule, request: Request, db: Session = Depends(get_db),
+                       user: User = Depends(require_operator)):
+    """Horário de funcionamento (liga/desliga automático)."""
+    screen = get_or_404(db, Screen, screen_id, "TV")
+    screen.power_schedule = data.model_dump()
+    audit.record(db, "screen.power_schedule_set", request=request, user=user, entity_type="screen",
+                 entity_id=screen.id, details=screen.power_schedule)
+    db.commit()
+    db.refresh(screen)
+    return screen_to_out(screen)
+
+
+def _apply_power(db: Session, request: Request, user: User, screens: List[Screen], action: str) -> None:
+    for screen in screens:
+        set_override(screen, action)
+        audit.record(db, f"screen.power_{action}", request=request, user=user, entity_type="screen",
+                     entity_id=screen.id, details={"identifier": screen.identifier})
+    db.commit()
+
+
+@router.post("/{screen_id}/power", response_model=ScreenOut)
+def power(screen_id: int, data: PowerAction, request: Request, db: Session = Depends(get_db),
+          user: User = Depends(require_operator)):
+    """Ligar agora / desligar agora / voltar ao automático. A TV aplica no próximo contato."""
+    screen = get_or_404(db, Screen, screen_id, "TV")
+    _apply_power(db, request, user, [screen], data.action)
+    db.refresh(screen)
+    return screen_to_out(screen)
+
+
+@router.put("/{screen_id}/volume", response_model=ScreenOut)
+def set_volume(screen_id: int, data: VolumeIn, request: Request, db: Session = Depends(get_db),
+               user: User = Depends(require_operator)):
+    screen = get_or_404(db, Screen, screen_id, "TV")
+    screen.volume = data.volume
+    audit.record(db, "screen.volume_set", request=request, user=user, entity_type="screen",
+                 entity_id=screen.id, details={"volume": data.volume})
+    db.commit()
+    db.refresh(screen)
+    return screen_to_out(screen)
 
 
 @router.get("/{screen_id}/heartbeats", response_model=List[HeartbeatOut])

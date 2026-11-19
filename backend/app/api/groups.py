@@ -8,7 +8,7 @@ from app.api.deps import conflict, get_or_404
 from app.core.permissions import require_admin, require_operator, require_viewer
 from app.database import get_db
 from app.models import Playlist, Screen, ScreenGroup, User
-from app.schemas.screens import BulkAssign, GroupCreate, GroupOut, GroupUpdate
+from app.schemas.screens import BulkAssign, GroupCreate, GroupOut, GroupUpdate, PowerAction
 from app.services import audit
 
 router = APIRouter(prefix="/groups", tags=["groups"])
@@ -85,6 +85,18 @@ def set_group_playlist(group_id: int, data: BulkAssign, request: Request, db: Se
     db.commit()
     db.refresh(g)
     return _out(db, g)
+
+
+@router.post("/{group_id}/power")
+def group_power(group_id: int, data: PowerAction, request: Request, db: Session = Depends(get_db),
+                user: User = Depends(require_operator)):
+    """Liga/desliga todas as TVs do grupo (ou volta todas ao automático)."""
+    from app.api.screens import _apply_power
+
+    g = get_or_404(db, ScreenGroup, group_id, "Grupo")
+    screens = db.scalars(select(Screen).where(Screen.group_id == g.id)).unique().all()
+    _apply_power(db, request, user, screens, data.action)
+    return {"group_id": g.id, "action": data.action, "screens": len(screens)}
 
 
 @router.delete("/{group_id}", status_code=204)

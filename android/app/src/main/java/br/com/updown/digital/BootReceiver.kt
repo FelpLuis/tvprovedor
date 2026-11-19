@@ -7,6 +7,8 @@ import android.content.Intent
 /** Abre o player automaticamente quando a TV liga ou quando o app é atualizado. */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        // ao ligar, o player consulta o servidor e volta para a espera se estiver fora do horário
+        PowerController.prefs(context).edit().putBoolean("standby", false).apply()
         val start = Intent(context, MainActivity::class.java).addFlags(
             Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         )

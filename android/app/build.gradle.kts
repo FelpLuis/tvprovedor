@@ -1,3 +1,5 @@
+import java.security.MessageDigest
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -13,8 +15,8 @@ android {
         applicationId = "br.com.updown.digital"
         minSdk = 21          // Android 5.0: cobre TVs e TV boxes antigas
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 3
+        versionName = "1.2.0"
         buildConfigField("String", "PLAYER_URL", "\"$playerUrl\"")
     }
 
@@ -50,5 +52,27 @@ android {
     lint {
         abortOnError = false
         checkReleaseBuilds = false
+    }
+}
+
+// Publica o APK para o servidor: frontend/app/updown-digital.apk + version.json
+// (as TVs com o app instalado se atualizam sozinhas a partir dele).
+//   ./gradlew publishApk
+tasks.register("publishApk") {
+    dependsOn("assembleRelease")
+    doLast {
+        val apk = layout.buildDirectory.file("outputs/apk/release/app-release.apk").get().asFile
+        val dest = rootProject.file("../frontend/app")
+        dest.mkdirs()
+        val target = File(dest, "updown-digital.apk")
+        apk.copyTo(target, overwrite = true)
+        val sha = MessageDigest.getInstance("SHA-256").digest(target.readBytes())
+            .joinToString("") { "%02x".format(it) }
+        val cfg = android.defaultConfig
+        File(dest, "version.json").writeText(
+            """{"versionCode": ${cfg.versionCode}, "versionName": "${cfg.versionName}", """ +
+                """"url": "/app/updown-digital.apk", "sha256": "$sha"}""" + "\n"
+        )
+        println("Publicado: ${target} (v${cfg.versionName}, sha256 $sha)")
     }
 }

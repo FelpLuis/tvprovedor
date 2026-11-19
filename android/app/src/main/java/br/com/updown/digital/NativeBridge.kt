@@ -1,5 +1,7 @@
 package br.com.updown.digital
 
+import android.content.Context
+import android.media.AudioManager
 import android.os.Build
 import android.os.SystemClock
 import android.webkit.JavascriptInterface
@@ -36,6 +38,64 @@ class NativeBridge(private val activity: MainActivity) {
     fun ping() {
         if (trusted()) activity.lastPing = SystemClock.elapsedRealtime()
     }
+
+    /** Token do dispositivo: usado pelo app para consultar o servidor com a tela apagada. */
+    @JavascriptInterface
+    fun setCredentials(token: String, origin: String) {
+        if (!trusted() || !activity.isPlayerOrigin("$origin/") || !token.startsWith("uds_")) return
+        PowerController.saveCredentials(activity, token, origin)
+    }
+
+    /** Ligar (true) ou colocar em espera (false). nextOnMs = próximo horário de ligar (0 = nenhum). */
+    @JavascriptInterface
+    fun setPower(on: Boolean, nextOnMs: Double) {
+        if (!trusted()) return
+        activity.runOnUiThread { activity.setStandby(!on, nextOnMs.toLong()) }
+    }
+
+    /** Volume do aparelho (0-100) definido no gerenciador. */
+    @JavascriptInterface
+    fun setVolume(percent: Int) {
+        if (!trusted()) return
+        val am = activity.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val index = Math.round(percent.coerceIn(0, 100) / 100f * max)
+        if (am.getStreamVolume(AudioManager.STREAM_MUSIC) != index) {
+            am.setStreamVolume(AudioManager.STREAM_MUSIC, index, 0)
+        }
+    }
+
+    @JavascriptInterface
+    fun getVolume(): Int {
+        val am = activity.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        return Math.round(am.getStreamVolume(AudioManager.STREAM_MUSIC) * 100f / max)
+    }
+
+    /** "device_admin" (espera real) ou "tela_preta" (sem permissão de administrador). */
+    @JavascriptInterface
+    fun getPowerControl(): String = PowerController.controlMode(activity)
+
+    /** Comando do gerenciador "Atualizar app": verifica e instala a versão do servidor. */
+    @JavascriptInterface
+    fun checkUpdate(): String {
+        if (!trusted()) return "não permitido"
+        UpdateManager.check(activity)
+        return "verificação iniciada"
+    }
+
+    @JavascriptInterface
+    fun getUpdateStatus(): String = UpdateManager.lastResult
+
+    /** Comando do gerenciador "Configurar app na TV": refaz as perguntas de permissão. */
+    @JavascriptInterface
+    fun runSetup() {
+        if (trusted()) activity.runOnUiThread { activity.setup.run(force = true) }
+    }
+
+    /** Permissões ainda pendentes ("ok" quando tudo liberado). */
+    @JavascriptInterface
+    fun getSetupStatus(): String = activity.setup.status()
 
     @JavascriptInterface
     fun reload() {

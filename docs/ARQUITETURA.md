@@ -45,6 +45,22 @@ dashboards ◄── screens.dashboard_id     └── screens.playlist_id │
 Os perfis de TV e as plataformas de dashboard são `str` validados por enums em
 `app/models/enums.py`: adicionar um novo tipo de player não exige migração.
 
+## Comunicação com as TVs
+
+Modelo *pull*: as TVs iniciam todas as conexões (HTTPS para `tv.updown.com.br`), o servidor nunca
+se conecta a elas. Funciona com TVs em outras redes, atrás de NAT/firewall, sem SSH nem VPN.
+Comandos, programação, tela, energia e volume chegam na resposta do heartbeat (30 s); em espera,
+o app Android consulta `GET /api/player/power` a cada minuto.
+
+## Energia
+
+`services/power.py` calcula o estado desejado de cada TV: horário de funcionamento (faixas por dia
+da semana no fuso `UDS_TIMEZONE`, inclusive atravessando a meia-noite) e comando manual, que vale
+enquanto o horário estiver no mesmo estado de quando foi dado. O heartbeat devolve `power`
+(`state`, `reason`, `next_change`, `next_on_ms`). No app, a espera usa o administrador do
+dispositivo (`lockNow`, apenas a política *force-lock*); um alarme local acorda a TV no próximo
+horário de ligar mesmo sem rede.
+
 ## Fluxo de ativação
 
 ```

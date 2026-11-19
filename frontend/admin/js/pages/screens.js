@@ -2,7 +2,7 @@ import { get, post, patch, put, del } from '../api.js';
 import {
   h, clear, btn, modal, formModal, confirmDialog, toast, toastError, buildForm,
   fmtAgo, fmtDate, fmtBytes, statusBadge, emptyState, debounce,
-  PROFILES, PROFILE_KIND, COMMANDS, PLAYBACK, ORIENTATIONS, RESOLUTIONS, suggestResolution,
+  PROFILES, PROFILE_KIND, COMMANDS, PLAYBACK, ORIENTATIONS, RESOLUTIONS, suggestResolution, WEEKDAYS,
 } from '../ui.js';
 import { session } from '../session.js';
 
@@ -184,6 +184,7 @@ export async function openScreenDetail(id, onChange) {
   const tabs = [
     ['info', 'Detalhes'],
     ['schedule', 'Programação'],
+    ['power', 'Energia e som'],
     ['commands', 'Comandos remotos'],
     ['history', 'Histórico'],
   ];
@@ -221,6 +222,7 @@ export async function openScreenDetail(id, onChange) {
       if (current === 'info') clear(pane, infoPane(s));
       if (current === 'schedule') clear(pane, await schedulePane(s, changed));
       if (current === 'commands') clear(pane, await commandsPane(s));
+      if (current === 'power') clear(pane, powerPane(s, changed));
       if (current === 'history') clear(pane, await historyPane(s));
     } catch (e) { clear(pane, h('div', { class: 'error-text' }, e.message)); }
   }
@@ -246,7 +248,9 @@ function displayDetected(d) {
   const phys = d.dpr ? ` (≈ ${Math.round(d.viewport[0] * d.dpr)}×${Math.round(d.viewport[1] * d.dpr)} px físicos)` : '';
   const stage = d.logical ? ` · palco ${d.logical[0]}×${d.logical[1]}, escala ${d.scale}` : '';
   const client = d.client === 'app' ? `app ${d.app || ''} · ${d.device || ''} · Android ${d.android || '?'} · ` : (d.client ? 'navegador · ' : '');
-  return `${client}${d.viewport[0]}×${d.viewport[1]} px · DPR ${d.dpr}${phys} · aparelho em ${d.device_orientation || '?'}${stage}`;
+  const setup = d.setup && d.setup !== 'ok' ? ` · permissões pendentes: ${d.setup}` : '';
+  const upd = d.update ? ` · atualização: ${d.update}` : '';
+  return `${client}${d.viewport[0]}×${d.viewport[1]} px · DPR ${d.dpr}${phys} · aparelho em ${d.device_orientation || "?"}${stage}${setup}${upd}`;
 }
 
 function infoPane(s) {
@@ -294,6 +298,79 @@ async function schedulePane(s, changed) {
       : h('div', { class: 'muted small' }, 'Somente operadores e administradores podem alterar a programação.'));
 }
 
+function powerPane(s, changed) {
+  const canEdit = session.can('operator');
+  const p = s.power || {};
+  const d = s.display_info || {};
+  const reported = !s.online ? 'sem contato' : (d.power === 'off' ? 'em espera' : 'ligada');
+  const control = d.client === 'app'
+    ? (d.power_control === 'device_admin' ? 'espera real (tela apagada; com HDMI-CEC a TV também desliga)' : 'tela preta (libere o controle de energia com o script de instalação)')
+    : (d.client ? 'navegador: apenas tela preta' : '—');
+  const act = (action, label, cls) => btn(label, async () => {
+    try { await post(`/screens/${s.id}/power`, { action }); toast('Enviado. A TV aplica em até 1 minuto.', 'success'); changed(); } catch (e) { toastError(e); }
+  }, { cls: `sm ${cls || ''}`, disabled: !canEdit });
+
+  // editor de horário
+  const sched = s.power_schedule || { enabled: false, slots: [] };
+  const enabled = h('input', { type: 'checkbox', checked: !!sched.enabled });
+  const slotsEl = h('div', { class: 'stack', style: 'gap:8px' });
+  const slots = (sched.slots && sched.slots.length ? sched.slots : [{ days: [0, 1, 2, 3, 4], on: '07:00', off: '19:00' }])
+    .map((x) => ({ ...x, days: [...x.days] }));
+  function drawSlots() {
+    clear(slotsEl, slots.map((slot, i) => h('div', { class: 'row', style: 'gap:6px' },
+      WEEKDAYS.map((name, day) => {
+        const cb = h('input', { type: 'checkbox', checked: slot.days.includes(day), disabled: !canEdit });
+        cb.addEventListener('change', () => {
+          slot.days = cb.checked ? [...new Set([...slot.days, day])].sort() : slot.days.filter((x) => x !== day);
+        });
+        return h('label', { class: 'check small' }, cb, name);
+      }),
+      h('span', { class: 'muted small' }, 'liga'),
+      (() => { const t = h('input', { type: 'time', value: slot.on, style: 'width:auto', disabled: !canEdit }); t.addEventListener('change', () => { slot.on = t.value; }); return t; })(),
+      h('span', { class: 'muted small' }, 'desliga'),
+      (() => { const t = h('input', { type: 'time', value: slot.off, style: 'width:auto', disabled: !canEdit }); t.addEventListener('change', () => { slot.off = t.value; }); return t; })(),
+      canEdit ? btn('', () => { slots.splice(i, 1); drawSlots(); }, { cls: 'ghost icon-only sm danger', ico: 'trash', title: 'Remover faixa' }) : null)));
+  }
+  drawSlots();
+
+  // volume
+  const volCtl = h('input', { type: 'checkbox', checked: s.volume !== null && s.volume !== undefined, disabled: !canEdit });
+  const vol = h('input', { type: 'range', min: 0, max: 100, value: s.volume ?? 50, style: 'width:240px', disabled: !canEdit });
+  const volLabel = h('span', { class: 'mono' }, `${vol.value}%`);
+  vol.addEventListener('input', () => { volLabel.textContent = `${vol.value}%`; });
+
+  return h('div', { class: 'stack' },
+    h('div', { class: 'card' },
+      h('div', { class: 'row' },
+        h('span', { class: `badge ${p.state === 'off' ? '' : 'success'}` }, h('span', { class: 'dot' }), p.state === 'off' ? 'Desligada (espera)' : 'Ligada'),
+        h('span', null, p.reason || ''), h('div', { class: 'grow' }),
+        act('on', 'Ligar agora', 'primary'), act('off', 'Desligar agora', 'danger'),
+        p.source === 'manual' ? act('auto', 'Voltar ao automático') : null),
+      h('dl', { class: 'kv small', style: 'margin-top:12px' },
+        h('dt', null, 'Estado informado pela TV'), h('dd', null, reported),
+        h('dt', null, 'Controle de energia'), h('dd', null, control),
+        h('dt', null, 'Volume atual da TV'), h('dd', null, d.volume !== undefined ? `${d.volume}%` : '—'))),
+    h('div', { class: 'card' },
+      h('h3', null, 'Horário de funcionamento'),
+      h('label', { class: 'check' }, enabled, 'Ligar e desligar automaticamente nestes horários'),
+      h('div', { class: 'muted small', style: 'margin:6px 0 10px' }, 'Fora das faixas a TV fica em espera. Faixas em que o horário de desligar é menor que o de ligar atravessam a meia-noite. "Ligar/Desligar agora" vale até a próxima mudança do horário.'),
+      slotsEl,
+      canEdit ? h('div', { class: 'row', style: 'margin-top:10px' },
+        btn('Adicionar faixa', () => { slots.push({ days: [5], on: '08:00', off: '12:00' }); drawSlots(); }, { cls: 'sm', ico: 'plus' }),
+        btn('Salvar horário', async () => {
+          const bad = slots.find((x) => !x.days.length || !x.on || !x.off || x.on === x.off);
+          if (bad) { toastError(new Error('Cada faixa precisa de pelo menos um dia e horários diferentes de ligar e desligar.')); return; }
+          try { await put(`/screens/${s.id}/power-schedule`, { enabled: enabled.checked, slots }); toast('Horário salvo', 'success'); changed(); } catch (e) { toastError(e); }
+        }, { cls: 'sm primary' })) : null),
+    h('div', { class: 'card' },
+      h('h3', null, 'Som'),
+      h('div', { class: 'row' }, h('label', { class: 'check' }, volCtl, 'Definir o volume da TV'), vol, volLabel,
+        canEdit ? btn('Salvar volume', async () => {
+          try { await put(`/screens/${s.id}/volume`, { volume: volCtl.checked ? Number(vol.value) : null }); toast('Volume enviado', 'success'); changed(); } catch (e) { toastError(e); }
+        }, { cls: 'sm primary' }) : null),
+      h('div', { class: 'muted small', style: 'margin-top:6px' }, 'No app Android o volume do aparelho é ajustado; no navegador, apenas o volume dos vídeos.')));
+}
+
 async function commandsPane(s) {
   const list = h('div');
   async function refresh() {
@@ -331,31 +408,37 @@ async function historyPane(s) {
       h('td', { class: 'error-text small' }, r.error || ''))))));
 }
 
-/** Instruções do app Android TV: download do APK e instalação pela rede, sem usar o navegador da TV. */
+/** Instruções do app Android TV: instalação sem ADB, sem depender do IP da TV. */
 export function openAppInfo() {
   const apk = `${location.origin}/app/updown-digital.apk`;
+  const short = `${location.host}/apk`;
   const code = (txt) => h('pre', { class: 'mono small', style: 'margin:0; padding:10px; background:var(--bg); border:1px solid var(--border); border-radius:8px; white-space:pre-wrap; word-break:break-all' }, txt);
+  const step = (n, title, ...body) => h('div', { class: 'stack', style: 'gap:6px' }, h('h3', { style: 'margin:8px 0 0' }, `${n}. ${title}`), ...body);
   modal({
     title: 'App Android TV — UpDown Digital', wide: true,
     body: h('div', { class: 'stack' },
-      h('p', { style: 'margin:0' }, 'O app abre sozinho o player (sempre a mesma URL), em tela cheia, ao ligar a TV. ',
-        'Não é preciso abrir o navegador nem digitar endereço. Depois de instalado, a TV mostra o código de ativação: ',
-        'ative em ', h('b', null, 'Ativar TV'), ' e defina orientação, resolução e tela cheia aqui no gerenciador.'),
+      h('div', { class: 'alert info' }, h('b', null, 'O IP da TV não importa. '),
+        'Depois de instalado, é a TV que se conecta a ', h('b', null, location.host), ' pela internet; ',
+        'o gerenciador nunca precisa do IP nem de acesso à rede das TVs. IP dinâmico, outra rede ou outra filial funcionam normalmente.'),
       h('div', null, h('a', { class: 'btn primary', href: apk, download: 'updown-digital.apk' }, 'Baixar APK'),
         h('span', { class: 'muted small', style: 'margin-left:10px' }, apk)),
-      h('h3', { style: 'margin:8px 0 0' }, '1. Instalação pela rede (recomendada)'),
-      h('p', { class: 'small', style: 'margin:0' }, 'Na TV: Configurações → Preferências do dispositivo → Sobre → clique 7 vezes em "Build" para liberar as opções do desenvolvedor; ',
-        'depois ative "Depuração USB/ADB" e "Depuração pela rede" e anote o IP da TV. Em um computador com ADB (ou no próprio servidor):'),
-      code(`scripts/instalar_tv.sh IP_DA_TV --quiosque`),
-      h('p', { class: 'small muted', style: 'margin:0' }, 'O script instala o app, libera a abertura automática ao ligar, desativa o protetor de tela e abre o player. ',
-        'Com --quiosque o app vira a tela inicial da TV. Sem o script, os comandos equivalentes são:'),
-      code(`adb connect IP_DA_TV:5555
-adb install -r updown-digital.apk
-adb shell appops set br.com.updown.digital SYSTEM_ALERT_WINDOW allow
-adb shell am start -n br.com.updown.digital/.MainActivity`),
-      h('h3', { style: 'margin:8px 0 0' }, '2. Pen drive'),
-      h('p', { class: 'small', style: 'margin:0' }, 'Copie o APK para um pen drive e abra-o na TV com um gerenciador de arquivos (permita "fontes desconhecidas"). ',
-        'Depois abra o app UpDown Digital uma vez.'),
+      step(1, 'Instalar na TV (uma única vez, sem ADB)',
+        h('p', { class: 'small', style: 'margin:0' }, h('b', null, 'Opção A — app Downloader: '),
+          'na Play Store da TV, instale o app gratuito "Downloader". Abra-o e digite o endereço curto abaixo; quando o download terminar, toque em Instalar (permita "fontes desconhecidas" para o Downloader se for pedido).'),
+        code(short),
+        h('p', { class: 'small', style: 'margin:0' }, h('b', null, 'Opção B — pen drive: '),
+          'copie o APK para um pen drive e abra-o na TV com um gerenciador de arquivos.')),
+      step(2, 'Configurar pelo controle remoto',
+        h('p', { class: 'small', style: 'margin:0' }, 'Abra o app UpDown Digital. Ele pergunta, uma vez, as permissões para: abrir sozinho ao ligar a TV, ligar/desligar pelo gerenciador, religar no horário, atualizar-se sozinho e virar a tela inicial (modo quiosque). Basta confirmar com OK. ',
+          'Se algo for recusado, envie o comando ', h('b', null, 'Configurar app na TV'), ' nos detalhes da TV.')),
+      step(3, 'Ativar no gerenciador',
+        h('p', { class: 'small', style: 'margin:0' }, 'A TV mostra um código: use ', h('b', null, 'Ativar TV'), ' e defina orientação, resolução, tela cheia, horário e volume.')),
+      step(4, 'Atualizações',
+        h('p', { class: 'small', style: 'margin:0' }, 'O app procura versões novas no servidor ao abrir e a cada 6 horas, e se atualiza sozinho (algumas TVs pedem um OK na tela). ',
+          'Para forçar, envie o comando ', h('b', null, 'Atualizar app'), '.')),
+      h('details', null, h('summary', { class: 'small muted' }, 'Avançado: instalação em lote por ADB (opcional)'),
+        h('p', { class: 'small', style: 'margin:8px 0' }, 'Para preparar muitas TVs de uma vez, num notebook na mesma rede das TVs (só durante a instalação):'),
+        code('scripts/instalar_tv.sh IP_DA_TV --quiosque')),
       h('div', { class: 'alert small' }, 'Para sair do app na manutenção, pressione VOLTAR 5 vezes seguidas.')),
   });
 }

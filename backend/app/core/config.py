@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     offline_after_seconds: int = 90
     heartbeat_history_every_seconds: int = 600
     heartbeat_history_keep_days: int = 30
+    # fuso dos horários de funcionamento das TVs
+    timezone: str = "America/Sao_Paulo"
     media_url_ttl_seconds: int = 24 * 3600
 
     # Uploads

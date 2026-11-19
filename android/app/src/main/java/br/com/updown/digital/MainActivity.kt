@@ -50,14 +50,29 @@ class MainActivity : Activity() {
 
     private val backPresses = ArrayDeque<Long>()
 
+    lateinit var setup: SetupAssistant
+
+    /** Verificação de atualização: 2 min após abrir e depois a cada 6 h. */
+    private val updateCheck = object : Runnable {
+        override fun run() {
+            UpdateManager.check(this@MainActivity)
+            handler.postDelayed(this, 6 * 3600_000L)
+        }
+    }
+
+    private val setupRunnable = Runnable { if (!isFinishing) setup.run() }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        allowWakeOverLock()
         container = FrameLayout(this).apply { setBackgroundColor(Color.rgb(20, 0, 88)) }
         setContentView(container)
+        setup = SetupAssistant(this)
         createWebView()
         applyFullscreen()
         handler.postDelayed(watchdog, WATCHDOG_INTERVAL_MS)
+        handler.postDelayed(updateCheck, 120_000L)
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -185,6 +200,32 @@ class MainActivity : Activity() {
 
     fun reloadPlayer() = handler.post { loadPlayer() }
 
+    /** Permite que o app acenda a tela ao sair da espera. */
+    private fun allowWakeOverLock() {
+        if (Build.VERSION.SDK_INT >= 27) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+            )
+        }
+    }
+
+    /** Espera definida pelo gerenciador/horário (o player já mostra a tela preta). */
+    fun setStandby(standby: Boolean, nextOnMs: Long) {
+        if (standby) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            PowerController.standby(this, nextOnMs)
+        } else {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            if (PowerController.isStandby(this)) PowerController.wake(this)
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)
@@ -195,9 +236,18 @@ class MainActivity : Activity() {
         handleIntent(intent)
         applyFullscreen()
         webView?.onResume()
+        // assistente de configuração (perguntas pendentes, pelo controle remoto)
+        handler.removeCallbacks(setupRunnable)
+        handler.postDelayed(setupRunnable, 2500)
     }
 
     private fun handleIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra("wake", false) == true) {
+            intent.removeExtra("wake")
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            // pede ao player que consulte o servidor imediatamente
+            webView?.evaluateJavascript("window.__udsWake && window.__udsWake()", null)
+        }
         val url = intent?.getStringExtra("url") ?: return
         intent.removeExtra("url")
         if (url.startsWith("https://")) {

@@ -27,6 +27,7 @@ from app.models.enums import CommandStatus
 from app.schemas.player import ActivationCodeOut, ActivationCodeRequest, ActivationPoll, CommandAck, HeartbeatIn
 from app.services import audit
 from app.services.media import media_path
+from app.services.power import evaluate as evaluate_power
 from app.services.screens import player_config, sign_playlist_urls
 
 router = APIRouter(prefix="/player", tags=["player"])
@@ -60,7 +61,8 @@ def _maintenance(db: Session) -> None:
 
 
 DISPLAY_KEYS = ("viewport", "screen", "dpr", "device_orientation", "logical", "rotation", "scale",
-                "client", "app", "device", "android", "fullscreen")
+                "client", "app", "device", "android", "fullscreen", "power", "volume", "power_control",
+                "setup", "update")
 
 
 def _clean_display(raw: Dict[str, Any]) -> Dict[str, Any]:
@@ -208,6 +210,7 @@ def heartbeat(data: HeartbeatIn, request: Request, screen: Screen = Depends(get_
 
     response: Dict[str, Any] = {
         "server_time": now.isoformat(),
+        "power": evaluate_power(screen, now).as_dict(),
         "config_hash": player_config(screen)["config_hash"],
         "heartbeat_interval": s.heartbeat_interval_seconds,
         "commands": out_cmds,
@@ -220,6 +223,18 @@ def heartbeat(data: HeartbeatIn, request: Request, screen: Screen = Depends(get_
     db.commit()
     _maintenance(db)
     return response
+
+
+@router.get("/power")
+def power_state(request: Request, screen: Screen = Depends(get_current_screen),
+                db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Consulta leve usada pelo app Android enquanto a TV está em espera (mantém a TV "online")."""
+    screen.last_seen_at = _now()
+    screen.last_ip = client_ip(request)
+    screen.playback_state = "standby"
+    result = {"server_time": _now().isoformat(), **evaluate_power(screen).as_dict()}
+    db.commit()
+    return result
 
 
 @router.post("/commands/{command_id}/ack")

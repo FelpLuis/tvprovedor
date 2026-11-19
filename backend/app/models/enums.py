@@ -93,6 +93,8 @@ class CommandType(str, Enum):
     RELOAD_PAGE = "reload_page"
     CLEAR_CACHE = "clear_cache"
     IDENTIFY = "identify"  # padrão de teste com nome, resolução e orientação
+    UPDATE_APP = "update_app"  # app Android: buscar e instalar a versão do servidor
+    APP_SETUP = "app_setup"    # app Android: refazer o assistente de permissões na TV
 
 
 class CommandStatus(str, Enum):

@@ -62,6 +62,18 @@ Campos de tela da TV (em `POST`/`PATCH /screens`):
 
 O APK do app é servido em `GET /app/updown-digital.apk` (sem autenticação; não contém segredos).
 
+Energia e som (perfil **O**):
+
+| Método | Rota | Descrição |
+|---|---|---|
+| POST | `/screens/{id}/power` | `{action}`: `on` (ligar agora), `off` (desligar agora), `auto` (voltar ao automático) |
+| PUT | `/screens/{id}/power-schedule` | `{enabled, slots: [{days: [0..6], on: "07:00", off: "19:00"}]}` (0 = segunda) |
+| PUT | `/screens/{id}/volume` | `{volume: 0..100 \| null}` (null = não controlar) |
+| POST | `/groups/{id}/power` | `{action}` para todas as TVs do grupo |
+
+`GET /screens/{id}` traz `power` com o estado desejado: `state`, `reason`, `source`
+(`always`/`schedule`/`manual`), `next_change`, `next_on`.
+
 ## Grupos
 
 | Método | Rota | Perfil | Descrição |
@@ -129,6 +141,7 @@ Para imagens, `duration_seconds` é o tempo de exibição; para vídeos, um limi
 | POST | `/player/activation-codes/poll` | segredo de pareamento | `pending` ou `activated` + token (uma vez) |
 | GET | `/player/config` | token | configuração com URLs assinadas e `config_hash` |
 | POST | `/player/heartbeat` | token | estado e tela detectada (`display`) → `{config_hash, commands, heartbeat_interval, new_token?}` |
+| GET | `/player/power` | token | estado de energia (consulta do app em espera) |
 | POST | `/player/commands/{id}/ack` | token | `{success, result}` |
 | GET | `/player/media/{id}?exp&sig` | URL assinada | download com suporte a `Range` |
 
