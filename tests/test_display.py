@@ -76,3 +76,20 @@ def test_android_apk_download(client):
     assert r.status_code == 200
     assert r.headers["content-type"] == "application/vnd.android.package-archive"
     assert r.content[:2] == b"PK"  # APK é um arquivo zip
+
+
+def test_short_apk_url_and_version_manifest(client):
+    r = client.get("/apk", follow_redirects=False)
+    assert r.status_code in (302, 307) and r.headers["location"] == "/app/updown-digital.apk"
+    import hashlib
+    info = client.get("/app/version.json").json()
+    apk = client.get("/app/updown-digital.apk").content
+    assert info["versionCode"] >= 3 and info["sha256"] == hashlib.sha256(apk).hexdigest()
+
+
+def test_app_commands(client, admin):
+    token, screen = activate_device(admin, client)
+    for c in ("update_app", "app_setup"):
+        assert admin.post(f"/api/screens/{screen['id']}/commands", json={"command": c}).status_code == 201
+    cmds = [c["command"] for c in client.post("/api/player/heartbeat", json={}, headers=dev(token)).json()["commands"]]
+    assert cmds == ["update_app", "app_setup"]

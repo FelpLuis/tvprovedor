@@ -278,6 +278,10 @@
     if (typeof vol === 'number' && vol >= 0) { r.volume = vol; }
     var ctl = nativeCall('getPowerControl');
     if (ctl) { r.power_control = ctl; }
+    var setupStatus = nativeCall('getSetupStatus');
+    if (setupStatus) { r.setup = String(setupStatus); }
+    var upd = nativeCall('getUpdateStatus');
+    if (upd) { r.update = String(upd); }
     return r;
   }
 
@@ -793,6 +797,21 @@
         break;
       case 'reload_page':
         ack(cmd, true, 'recarregando página').then(function () { location.reload(); });
+        break;
+      case 'update_app':
+        if (NATIVE && typeof NATIVE.checkUpdate === 'function') {
+          ack(cmd, true, nativeCall('checkUpdate') + ' (resultado aparece nos detalhes da TV)');
+        } else {
+          ack(cmd, false, 'disponível apenas no app UpDown Digital');
+        }
+        break;
+      case 'app_setup':
+        if (NATIVE && typeof NATIVE.runSetup === 'function') {
+          nativeCall('runSetup');
+          ack(cmd, true, 'assistente aberto na TV');
+        } else {
+          ack(cmd, false, 'disponível apenas no app UpDown Digital');
+        }
         break;
       case 'identify':
         showIdentify(30);

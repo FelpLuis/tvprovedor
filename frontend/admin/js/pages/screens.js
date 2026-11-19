@@ -248,7 +248,9 @@ function displayDetected(d) {
   const phys = d.dpr ? ` (≈ ${Math.round(d.viewport[0] * d.dpr)}×${Math.round(d.viewport[1] * d.dpr)} px físicos)` : '';
   const stage = d.logical ? ` · palco ${d.logical[0]}×${d.logical[1]}, escala ${d.scale}` : '';
   const client = d.client === 'app' ? `app ${d.app || ''} · ${d.device || ''} · Android ${d.android || '?'} · ` : (d.client ? 'navegador · ' : '');
-  return `${client}${d.viewport[0]}×${d.viewport[1]} px · DPR ${d.dpr}${phys} · aparelho em ${d.device_orientation || '?'}${stage}`;
+  const setup = d.setup && d.setup !== 'ok' ? ` · permissões pendentes: ${d.setup}` : '';
+  const upd = d.update ? ` · atualização: ${d.update}` : '';
+  return `${client}${d.viewport[0]}×${d.viewport[1]} px · DPR ${d.dpr}${phys} · aparelho em ${d.device_orientation || "?"}${stage}${setup}${upd}`;
 }
 
 function infoPane(s) {
@@ -406,31 +408,37 @@ async function historyPane(s) {
       h('td', { class: 'error-text small' }, r.error || ''))))));
 }
 
-/** Instruções do app Android TV: download do APK e instalação pela rede, sem usar o navegador da TV. */
+/** Instruções do app Android TV: instalação sem ADB, sem depender do IP da TV. */
 export function openAppInfo() {
   const apk = `${location.origin}/app/updown-digital.apk`;
+  const short = `${location.host}/apk`;
   const code = (txt) => h('pre', { class: 'mono small', style: 'margin:0; padding:10px; background:var(--bg); border:1px solid var(--border); border-radius:8px; white-space:pre-wrap; word-break:break-all' }, txt);
+  const step = (n, title, ...body) => h('div', { class: 'stack', style: 'gap:6px' }, h('h3', { style: 'margin:8px 0 0' }, `${n}. ${title}`), ...body);
   modal({
     title: 'App Android TV — UpDown Digital', wide: true,
     body: h('div', { class: 'stack' },
-      h('p', { style: 'margin:0' }, 'O app abre sozinho o player (sempre a mesma URL), em tela cheia, ao ligar a TV. ',
-        'Não é preciso abrir o navegador nem digitar endereço. Depois de instalado, a TV mostra o código de ativação: ',
-        'ative em ', h('b', null, 'Ativar TV'), ' e defina orientação, resolução e tela cheia aqui no gerenciador.'),
+      h('div', { class: 'alert info' }, h('b', null, 'O IP da TV não importa. '),
+        'Depois de instalado, é a TV que se conecta a ', h('b', null, location.host), ' pela internet; ',
+        'o gerenciador nunca precisa do IP nem de acesso à rede das TVs. IP dinâmico, outra rede ou outra filial funcionam normalmente.'),
       h('div', null, h('a', { class: 'btn primary', href: apk, download: 'updown-digital.apk' }, 'Baixar APK'),
         h('span', { class: 'muted small', style: 'margin-left:10px' }, apk)),
-      h('h3', { style: 'margin:8px 0 0' }, '1. Instalação pela rede (recomendada)'),
-      h('p', { class: 'small', style: 'margin:0' }, 'Na TV: Configurações → Preferências do dispositivo → Sobre → clique 7 vezes em "Build" para liberar as opções do desenvolvedor; ',
-        'depois ative "Depuração USB/ADB" e "Depuração pela rede" e anote o IP da TV. Em um computador com ADB conectado à mesma rede das TVs (só para instalar; depois a TV se comunica sozinha com o gerenciador pela internet):'),
-      code(`scripts/instalar_tv.sh IP_DA_TV --quiosque`),
-      h('p', { class: 'small muted', style: 'margin:0' }, 'O script instala o app, libera a abertura automática ao ligar, desativa o protetor de tela e abre o player. ',
-        'Com --quiosque o app vira a tela inicial da TV. Sem o script, os comandos equivalentes são:'),
-      code(`adb connect IP_DA_TV:5555
-adb install -r updown-digital.apk
-adb shell appops set br.com.updown.digital SYSTEM_ALERT_WINDOW allow
-adb shell am start -n br.com.updown.digital/.MainActivity`),
-      h('h3', { style: 'margin:8px 0 0' }, '2. Pen drive'),
-      h('p', { class: 'small', style: 'margin:0' }, 'Copie o APK para um pen drive e abra-o na TV com um gerenciador de arquivos (permita "fontes desconhecidas"). ',
-        'Depois abra o app UpDown Digital uma vez.'),
+      step(1, 'Instalar na TV (uma única vez, sem ADB)',
+        h('p', { class: 'small', style: 'margin:0' }, h('b', null, 'Opção A — app Downloader: '),
+          'na Play Store da TV, instale o app gratuito "Downloader". Abra-o e digite o endereço curto abaixo; quando o download terminar, toque em Instalar (permita "fontes desconhecidas" para o Downloader se for pedido).'),
+        code(short),
+        h('p', { class: 'small', style: 'margin:0' }, h('b', null, 'Opção B — pen drive: '),
+          'copie o APK para um pen drive e abra-o na TV com um gerenciador de arquivos.')),
+      step(2, 'Configurar pelo controle remoto',
+        h('p', { class: 'small', style: 'margin:0' }, 'Abra o app UpDown Digital. Ele pergunta, uma vez, as permissões para: abrir sozinho ao ligar a TV, ligar/desligar pelo gerenciador, religar no horário, atualizar-se sozinho e virar a tela inicial (modo quiosque). Basta confirmar com OK. ',
+          'Se algo for recusado, envie o comando ', h('b', null, 'Configurar app na TV'), ' nos detalhes da TV.')),
+      step(3, 'Ativar no gerenciador',
+        h('p', { class: 'small', style: 'margin:0' }, 'A TV mostra um código: use ', h('b', null, 'Ativar TV'), ' e defina orientação, resolução, tela cheia, horário e volume.')),
+      step(4, 'Atualizações',
+        h('p', { class: 'small', style: 'margin:0' }, 'O app procura versões novas no servidor ao abrir e a cada 6 horas, e se atualiza sozinho (algumas TVs pedem um OK na tela). ',
+          'Para forçar, envie o comando ', h('b', null, 'Atualizar app'), '.')),
+      h('details', null, h('summary', { class: 'small muted' }, 'Avançado: instalação em lote por ADB (opcional)'),
+        h('p', { class: 'small', style: 'margin:8px 0' }, 'Para preparar muitas TVs de uma vez, num notebook na mesma rede das TVs (só durante a instalação):'),
+        code('scripts/instalar_tv.sh IP_DA_TV --quiosque')),
       h('div', { class: 'alert small' }, 'Para sair do app na manutenção, pressione VOLTAR 5 vezes seguidas.')),
   });
 }

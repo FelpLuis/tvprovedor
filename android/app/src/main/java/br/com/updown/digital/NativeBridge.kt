@@ -76,6 +76,27 @@ class NativeBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun getPowerControl(): String = PowerController.controlMode(activity)
 
+    /** Comando do gerenciador "Atualizar app": verifica e instala a versão do servidor. */
+    @JavascriptInterface
+    fun checkUpdate(): String {
+        if (!trusted()) return "não permitido"
+        UpdateManager.check(activity)
+        return "verificação iniciada"
+    }
+
+    @JavascriptInterface
+    fun getUpdateStatus(): String = UpdateManager.lastResult
+
+    /** Comando do gerenciador "Configurar app na TV": refaz as perguntas de permissão. */
+    @JavascriptInterface
+    fun runSetup() {
+        if (trusted()) activity.runOnUiThread { activity.setup.run(force = true) }
+    }
+
+    /** Permissões ainda pendentes ("ok" quando tudo liberado). */
+    @JavascriptInterface
+    fun getSetupStatus(): String = activity.setup.status()
+
     @JavascriptInterface
     fun reload() {
         if (trusted()) activity.reloadPlayer()

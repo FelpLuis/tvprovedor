@@ -273,6 +273,8 @@ export const COMMANDS = {
   reload_page: 'Recarregar player',
   clear_cache: 'Limpar cache local',
   identify: 'Identificar tela',
+  update_app: 'Atualizar app',
+  app_setup: 'Configurar app na TV',
 };
 export const PLAYBACK = {
   playing: 'Reproduzindo', idle: 'Ocioso', loading: 'Carregando', error: 'Erro',

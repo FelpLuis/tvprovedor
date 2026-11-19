@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- religar no horário exato (Android 12+; liberada pelo script de instalação) -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- o app instala as próprias atualizações (baixadas do servidor UpDown Digital) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Funciona em Android TV, TV boxes e também em tablets/monitores Android -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
@@ -50,6 +52,10 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity-alias>
+
+        <receiver
+            android:name=".InstallResultReceiver"
+            android:exported="false" />
 
         <!-- espera/religar: alarmes locais e consulta ao servidor enquanto a tela está apagada -->
         <receiver

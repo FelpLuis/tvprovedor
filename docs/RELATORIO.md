@@ -32,16 +32,17 @@ passo em [INSTALACAO.md](INSTALACAO.md) e deve ser executada com autorização, 
 | 9 Segurança | ✅ | ver [ARQUITETURA.md](ARQUITETURA.md#segurança) |
 | 10 Implantação (systemd, Caddy, banco exclusivo, porta 8095) | 📄 documentado | `deploy/`, `docs/INSTALACAO.md` |
 | 11 Interface (escura/clara, responsiva, menu lateral, cards) | ✅ | `frontend/admin` |
-| 12 Testes automatizados | ✅ | `tests/` (55 testes) |
+| 12 Testes automatizados | ✅ | `tests/` (57 testes) |
 | 13 Monitoramento (disponibilidade, histórico, erros, versão, armazenamento) | ✅ | painel → TVs → detalhes |
 | 15 Versionamento (.env fora do Git, .env.example) | ✅ | `.gitignore`, `.env.example` |
 | Extra: orientação retrato/paisagem, resolução por TV, polegadas, margem de segurança, identificação de tela | ✅ | `player.js::applyDisplay`, migração `0002` |
 | Extra: app Android TV (URL única, tela cheia pelo gerenciador, início automático, quiosque) e instalação pela rede | ✅ compilado | `android/`, `scripts/instalar_tv.sh`, migração `0003` |
 | Extra: ligar/desligar agora (TV e grupo), horário de funcionamento, volume | ✅ | `services/power.py`, `PowerController.kt`, migração `0004` |
+| Extra: instalação sem ADB (assistente de permissões no app) e atualização automática do app | ✅ compilado | `SetupAssistant.kt`, `UpdateManager.kt`, `/apk`, `/app/version.json` |
 
 ## Testes executados
 
-### Automatizados (pytest): 55 testes, todos passando
+### Automatizados (pytest): 57 testes, todos passando
 
 Executados em **SQLite** e em **PostgreSQL 16** (`UDS_TEST_DATABASE_URL`), com Python 3.10
 (mesma versão do servidor):
