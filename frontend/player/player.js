@@ -342,7 +342,7 @@
       displayCode(p);
       pollActivation(p);
     }).catch(function (err) {
-      var wait = err && err.status === 429 ? 60 : 15;
+      var wait = err && err.status === 429 ? 60 : 5;
       $('activation-status').textContent = 'Sem comunicação com o servidor. Nova tentativa em ' + wait + 's.';
       activationTimer = setTimeout(requestCode, wait * 1000);
     });
@@ -800,8 +800,8 @@
         setOnline(false);
         if (state.playbackState === 'playing') { state.playbackState = 'offline_cache'; }
       }
-      // espera progressiva até 2 minutos
-      scheduleHeartbeat(Math.min(state.heartbeatInterval * Math.pow(2, Math.min(state.failedHeartbeats, 3)), 120));
+      // sem conexão: tenta de novo logo (5 s, 10 s, 20 s… no máximo 30 s) para voltar rápido
+      scheduleHeartbeat(Math.min(5 * Math.pow(2, Math.min(state.failedHeartbeats - 1, 3)), 30));
     }).then(renderInfo);
   }
 
@@ -957,7 +957,8 @@
         state.playbackState = 'offline_cache';
       } else if (!state.config) {
         showMessage('Sem conexão com o servidor', 'Nova tentativa em instantes…');
-        setTimeout(boot, 20000);
+        // ainda sem servidor (ex.: roteador voltando após queda de energia): tenta de novo em 5 s
+        setTimeout(boot, 5000);
       }
     }).then(function () {
       if (state.token) { scheduleHeartbeat(2); }
@@ -966,6 +967,11 @@
 
   // chamado pelo app Android ao acender a tela (horário ou "Ligar agora")
   window.__udsWake = function () { scheduleHeartbeat(1); };
+  // chamado pelo app quando a rede volta: reconecta na hora
+  window.__udsNetworkUp = function () {
+    if (!state.token) { return; }
+    if (!state.config) { boot(); } else { scheduleHeartbeat(1); }
+  };
 
   setupUi();
   MediaCache.requestPersistence();

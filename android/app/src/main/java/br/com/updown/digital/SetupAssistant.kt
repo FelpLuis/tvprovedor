@@ -25,8 +25,9 @@ class SetupAssistant(private val activity: MainActivity) {
 
     private val steps: List<Step> by lazy {
         listOf(
-            Step("overlay", "Abrir sozinho ao ligar a TV",
-                "Na próxima tela, ative \"Permitir sobreposição\" (exibir sobre outros apps) para o UpDown Digital.",
+            Step("overlay", "Modo quiosque: abrir sozinho ao ligar a TV",
+                "Essencial para o app abrir sozinho depois de uma queda de energia e voltar para a frente se outra tela abrir. " +
+                    "Na próxima tela, ative \"Permitir sobreposição\" (exibir sobre outros apps) para o UpDown Digital.",
                 { Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(activity) },
                 { open(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${activity.packageName}"))) }),
             Step("admin", "Ligar e desligar pelo gerenciador",
@@ -73,6 +74,7 @@ class SetupAssistant(private val activity: MainActivity) {
     fun status(): String = steps.filter { it.needed() }.joinToString(",") { it.key }.ifEmpty { "ok" }
 
     private fun open(intent: Intent) {
+        KioskGuard.pause(activity, 3 * 60_000L)  // não puxar o app enquanto a pessoa configura
         try {
             activity.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (e: Exception) {
@@ -92,13 +94,13 @@ class SetupAssistant(private val activity: MainActivity) {
             ComponentName(activity, "${activity.packageName}.KioskHome"),
             PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP
         )
-        // abre a escolha de tela inicial do sistema
-        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-        val settings = if (Build.VERSION.SDK_INT >= 21) Intent(Settings.ACTION_HOME_SETTINGS) else null
+        // tela "App de início" das configurações; se a TV não tiver, o seletor do sistema
+        // (pressionar HOME) mostra as opções "Sempre / Só uma vez"
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
-            activity.startActivity(settings ?: home)
+            activity.startActivity(Intent(Settings.ACTION_HOME_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (e: Exception) {
-            try { activity.startActivity(Intent.createChooser(home, "Tela inicial")) } catch (ignored: Exception) { }
+            try { activity.startActivity(home) } catch (ignored: Exception) { }
         }
     }
 }

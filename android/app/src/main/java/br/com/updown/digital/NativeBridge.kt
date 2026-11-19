@@ -30,6 +30,7 @@ class NativeBridge(private val activity: MainActivity) {
     fun setFullscreen(enabled: Boolean) {
         if (!trusted()) return
         activity.fullscreenEnabled = enabled
+        KioskGuard.setEnabled(activity, enabled)  // "Tela cheia (modo quiosque)" do gerenciador
         activity.runOnUiThread { activity.applyFullscreen() }
     }
 
