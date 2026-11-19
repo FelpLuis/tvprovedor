@@ -35,7 +35,7 @@ function screenFields(refs, values = {}) {
     { name: 'camera_ids', label: 'Câmeras do mosaico (na ordem em que forem marcadas)', type: 'multiselect', full: true,
       options: refs.cameras.filter((c) => c.is_active).map((c) => [c.id, `${c.name}${c.location ? ' — ' + c.location : ''}`]),
       empty: 'Nenhuma câmera cadastrada. Cadastre em Câmeras.' },
-    { name: 'camera_layout', label: 'Mosaico', type: 'select',
+    { name: 'camera_layout', label: 'Mosaico', type: 'select', default: 'auto',
       options: [['auto', 'Automático (pela quantidade)'], ['1', '1 câmera'], ['4', '2 × 2'], ['9', '3 × 3'], ['16', '4 × 4']] },
     { name: 'camera_cycle_seconds', label: 'Rodízio de páginas (s)', type: 'number', min: 0, max: 3600, default: 0,
       help: 'Com mais câmeras que espaços no mosaico, troca de página neste intervalo. 0 = sem rodízio.' },
@@ -104,6 +104,8 @@ function cleanScreenValues(v) {
   if (out.profile === 'MEDIA_PLAYER') { out.dashboard_id = null; out.refresh_seconds = null; } else { out.playlist_id = null; }
   if (out.profile === 'CAMERA_PLAYER') { out.dashboard_id = null; out.refresh_seconds = null; }
   if (out.camera_cycle_seconds === null || out.camera_cycle_seconds === undefined) out.camera_cycle_seconds = 0;
+  if (!out.camera_layout) out.camera_layout = 'auto';
+  if (!Array.isArray(out.camera_ids)) out.camera_ids = [];
   return out;
 }
 
