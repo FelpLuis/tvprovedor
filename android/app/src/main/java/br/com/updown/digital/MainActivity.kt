@@ -2,7 +2,11 @@ package br.com.updown.digital
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.Network
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -75,6 +79,8 @@ class MainActivity : Activity() {
         applyFullscreen()
         handler.postDelayed(watchdog, WATCHDOG_INTERVAL_MS)
         handler.postDelayed(updateCheck, 120_000L)
+        KioskGuard.schedule(this, 60_000L)
+        watchNetwork()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -117,12 +123,16 @@ class MainActivity : Activity() {
 
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                 // sem rede no primeiro acesso: tenta de novo (depois do 1º acesso o player abre do cache)
-                if (request.isForMainFrame) scheduleReload(RETRY_DELAY_MS)
+                if (request.isForMainFrame) { loadFailed = true; scheduleReload(RETRY_DELAY_MS) }
+            }
+
+            override fun onPageFinished(view: WebView, url: String) {
+                if (!loadFailed) retryDelay = RETRY_DELAY_MS
             }
 
             @Deprecated("Android 5.x/6.0")
             override fun onReceivedError(view: WebView, errorCode: Int, description: String?, failingUrl: String?) {
-                if (failingUrl == null || failingUrl == view.url) scheduleReload(RETRY_DELAY_MS)
+                if (failingUrl == null || failingUrl == view.url) { loadFailed = true; scheduleReload(RETRY_DELAY_MS) }
             }
 
             override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
@@ -156,14 +166,45 @@ class MainActivity : Activity() {
         return a.scheme == b.scheme && a.host == b.host && a.port == b.port
     }
 
+    @Volatile private var loadFailed = false
+    private var retryDelay = RETRY_DELAY_MS
+
+    /** Rede voltou (ex.: roteador religou após queda de energia): reconecta na hora. */
+    private fun watchNetwork() {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val onUp = {
+            handler.post {
+                if (loadFailed) loadPlayer()
+                else webView?.evaluateJavascript("window.__udsNetworkUp && window.__udsNetworkUp()", null)
+            }
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= 24) {
+                cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: Network) { onUp() }
+                })
+            } else {
+                @Suppress("DEPRECATION")
+                registerReceiver(object : BroadcastReceiver() {
+                    override fun onReceive(c: Context, i: Intent) {
+                        if (cm.activeNetworkInfo?.isConnected == true) onUp()
+                    }
+                }, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
+            }
+        } catch (e: Exception) { /* sem monitoramento: fica com as tentativas periódicas */ }
+    }
+
     private fun loadPlayer() {
+        loadFailed = false
         lastPing = SystemClock.elapsedRealtime()
         webView?.loadUrl(playerUrl())
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private fun scheduleReload(delayMs: Long) {
         handler.removeCallbacks(reloadRunnable)
-        handler.postDelayed(reloadRunnable, delayMs)
+        handler.postDelayed(reloadRunnable, retryDelay)
+        retryDelay = (retryDelay * 2).coerceAtMost(30_000L)  // 5 s, 10 s, 20 s, 30 s…
     }
 
     private val reloadRunnable = Runnable { loadPlayer() }
@@ -261,6 +302,16 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        KioskGuard.activityVisible = true
+    }
+
+    override fun onStop() {
+        KioskGuard.activityVisible = false
+        super.onStop()
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) applyFullscreen()
@@ -277,6 +328,7 @@ class MainActivity : Activity() {
             while (backPresses.isNotEmpty() && now - backPresses.first() > 4000) backPresses.removeFirst()
             if (backPresses.size >= 5) {
                 backPresses.clear()
+                KioskGuard.pauseForMaintenance(this)  // 10 min sem voltar sozinho
                 moveTaskToBack(true)
             }
             return true
@@ -295,7 +347,7 @@ class MainActivity : Activity() {
     companion object {
         const val PREFS = "updown_digital"
         const val KEY_URL = "player_url"
-        const val RETRY_DELAY_MS = 15_000L
+        const val RETRY_DELAY_MS = 5_000L
         const val WATCHDOG_INTERVAL_MS = 60_000L
         const val WATCHDOG_TIMEOUT_MS = 5 * 60_000L
     }

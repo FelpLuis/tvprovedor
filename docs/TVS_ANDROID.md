@@ -52,6 +52,27 @@ IP dinâmico, outra rede ou outra filial funcionam normalmente.
    painel mostra as permissões pendentes em *Tela detectada*.
 3. **Ativar no gerenciador:** a TV mostra o código; use **TVs → Ativar TV**.
 
+### Modo quiosque e queda de energia
+
+Com **Tela cheia (modo quiosque)** ligada no gerenciador (padrão), o app:
+
+- abre sozinho ao ligar a TV e tenta de novo após 15 s, 45 s e 90 s (o launcher e o roteador costumam
+  demorar a voltar depois de uma queda de energia);
+- a cada minuto, se outra tela estiver na frente (ex.: a tela inicial da TV), traz o player de volta;
+- ao detectar que a rede voltou, reconecta na hora; sem esse aviso, tenta a cada 5, 10, 20 e no
+  máximo 30 segundos.
+
+Para funcionar em Android 10 ou superior, a permissão **Sobrepor a outros apps** precisa estar
+liberada (primeira pergunta do assistente). Se o painel mostrar "⚠ permissões pendentes: abrir
+sozinho/quiosque", envie **Configurar app na TV**. Definir o app como **tela inicial** reforça o
+quiosque.
+
+Na TV, confira também a opção de energia do próprio aparelho: **Ligar após queda de energia /
+Comportamento ao ligar = Ligado (ou Último estado)**. Algumas TVs voltam em espera depois de uma
+queda; nesse caso nenhum app consegue abrir até alguém ligar a TV pelo controle.
+
+Manutenção: VOLTAR 5 vezes sai do app por 10 minutos sem que ele volte sozinho.
+
 ### Atualização do app (automática)
 
 O app consulta `https://tv.updown.com.br/app/version.json` ao abrir e a cada 6 horas. Havendo

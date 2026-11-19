@@ -54,6 +54,10 @@
         </activity-alias>
 
         <receiver
+            android:name=".KioskReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".InstallResultReceiver"
             android:exported="false" />
 

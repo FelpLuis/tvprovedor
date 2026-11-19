@@ -98,6 +98,7 @@ class InstallResultReceiver : BroadcastReceiver() {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                 @Suppress("DEPRECATION")
                 val confirm = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT) ?: return
+                KioskGuard.pause(context, 3 * 60_000L)  // deixa a tela de confirmação na frente
                 try { context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e: Exception) { }
                 UpdateManager.lastResult = "aguardando confirmação na TV"
             }

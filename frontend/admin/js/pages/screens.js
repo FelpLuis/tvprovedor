@@ -261,7 +261,10 @@ function displayDetected(d) {
   const phys = d.dpr ? ` (≈ ${Math.round(d.viewport[0] * d.dpr)}×${Math.round(d.viewport[1] * d.dpr)} px físicos)` : '';
   const stage = d.logical ? ` · palco ${d.logical[0]}×${d.logical[1]}, escala ${d.scale}` : '';
   const client = d.client === 'app' ? `app ${d.app || ''} · ${d.device || ''} · Android ${d.android || '?'} · ` : (d.client ? 'navegador · ' : '');
-  const setup = d.setup && d.setup !== 'ok' ? ` · permissões pendentes: ${d.setup}` : '';
+  const SETUP = { overlay: 'abrir sozinho/quiosque (sobrepor a outros apps)', admin: 'ligar/desligar', alarm: 'religar no horário',
+    install: 'atualizar sozinho', home: 'tela inicial' };
+  const setup = d.setup && d.setup !== 'ok'
+    ? ` · ⚠ permissões pendentes: ${d.setup.split(',').map((k) => SETUP[k] || k).join(', ')} (envie "Configurar app na TV")` : '';
   const upd = d.update ? ` · atualização: ${d.update}` : '';
   return `${client}${d.viewport[0]}×${d.viewport[1]} px · DPR ${d.dpr}${phys} · aparelho em ${d.device_orientation || "?"}${stage}${setup}${upd}`;
 }

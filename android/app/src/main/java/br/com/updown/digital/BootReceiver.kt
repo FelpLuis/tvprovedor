@@ -9,14 +9,7 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         // ao ligar, o player consulta o servidor e volta para a espera se estiver fora do horário
         PowerController.prefs(context).edit().putBoolean("standby", false).apply()
-        val start = Intent(context, MainActivity::class.java).addFlags(
-            Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        )
-        try {
-            context.startActivity(start)
-        } catch (e: Exception) {
-            // Android 10+ sem a permissão "sobrepor outros apps": use o modo quiosque
-            // (app como tela inicial) ou libere a permissão pelo script de instalação.
-        }
+        // modo quiosque: abre agora e tenta de novo nos próximos minutos (launcher/rede lentos)
+        KioskGuard.onBoot(context.applicationContext)
     }
 }
