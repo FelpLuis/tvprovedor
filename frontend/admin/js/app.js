@@ -125,10 +125,15 @@ async function route() {
     clear(layout.content, h('div', { class: 'empty' }, 'Você não tem permissão para acessar esta página.'));
     return;
   }
-  clear(layout.content, h('div', { class: 'muted' }, 'Carregando…'));
+  layout.content.classList.remove('page-enter');
+  clear(layout.content, h('div', { class: 'stack' }, h('div', { class: 'skeleton', style: 'height:56px; width:40%' }),
+    h('div', { class: 'skeleton' }), h('div', { class: 'skeleton', style: 'height:220px' })));
   document.title = `${r.label} · UpDown Digital`;
   try {
     const ret = await r.page.render(layout.content, params);
+    // entrada suave da página (cascata)
+    void layout.content.offsetWidth;
+    layout.content.classList.add('page-enter');
     if (typeof ret === 'function') cleanup = ret;
   } catch (e) {
     if (e instanceof ApiError && e.status === 401) return;
