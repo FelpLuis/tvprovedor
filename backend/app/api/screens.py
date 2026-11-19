@@ -69,6 +69,7 @@ def _new_screen(db: Session, data: ScreenCreate) -> Screen:
     values = data.model_dump()
     values["profile"] = data.profile.value
     values["status"] = data.status.value
+    values["orientation"] = data.orientation.value
     values["identifier"] = data.identifier.upper()
     if data.profile == ScreenProfile.MEDIA_PLAYER:
         values["dashboard_id"] = None

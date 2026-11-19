@@ -49,6 +49,35 @@ Na própria TV:
    TV já cadastrada** (útil para trocar o aparelho mantendo a configuração).
 4. Em até 5 segundos a TV recebe o token e começa a baixar e reproduzir o conteúdo.
 
+## Orientação, resolução e tamanho da tela
+
+Cada TV tem a sua configuração de tela em **TVs → Editar → Tela**:
+
+| Campo | O que faz |
+|---|---|
+| **Orientação** | *Paisagem* (padrão), *Retrato* (TV instalada em pé, conteúdo girado 90°), *Paisagem invertida* (180°) ou *Retrato invertido* (270°). Se o conteúdo ficar de cabeça para baixo, troque *Retrato* por *Retrato invertido*. |
+| **Resolução de exibição** | *Automática* usa a resolução que o navegador da TV informa. Uma resolução fixa (HD, Full HD, 4K ou personalizada) monta o conteúdo sempre nesse tamanho e o ajusta à tela: o mesmo layout aparece igual em TVs de polegadas e resoluções diferentes. Resoluções menores deixam textos e dashboards maiores. Em retrato, largura e altura são invertidas automaticamente (1920×1080 vira 1080×1920). |
+| **Tamanho (polegadas)** | Registro da TV e sugestão de resolução: até 32" → HD; 40" a 50" → Full HD; 55" ou mais → Full HD (dashboards) ou 4K (conteúdo em 4K). |
+| **Margem de segurança** | Reduz a área útil em 0% a 10% de cada lado, para TVs que cortam as bordas (*overscan*). |
+
+As mudanças chegam à TV sozinhas no próximo heartbeat (até 30 s), sem reinstalar nada.
+
+**Antes da ativação**, para o código já aparecer na posição certa numa TV em pé, abra o player com o
+parâmetro de orientação: `https://tv.updown.com.br/player/?orientacao=retrato` (também aceita
+`retrato-invertido` e `paisagem-invertida`). Depois de ativada, vale a configuração do painel; a
+última orientação usada fica guardada na TV.
+
+**Identificar tela:** em TVs → detalhes → Comandos remotos, o comando *Identificar tela* mostra
+na TV, por 30 segundos, um padrão de teste com o nome da TV, a orientação, a resolução do palco,
+a resolução real do navegador (pixels CSS e físicos), as polegadas e a margem. Os **cantos
+amarelos** devem aparecer inteiros; se estiverem cortados, aumente a margem de segurança. O painel
+também mostra a resolução detectada em TVs → detalhes → *Tela detectada*.
+
+Para as mídias de TVs em retrato, prepare imagens e vídeos em pé (1080×1920). Conteúdo em
+paisagem é exibido conforme o *ajuste à tela* da playlist (com bordas, cortado ou esticado).
+Girar vídeos por software exige mais da TV; em aparelhos muito modestos, prefira configurar a
+rotação no próprio Android TV, se disponível, e deixar *Paisagem* no painel.
+
 ## Teclas do controle
 
 | Tecla | Ação |
@@ -93,6 +122,9 @@ ffmpeg -i entrada.mov -c:v libx264 -profile:v high -level 4.1 -pix_fmt yuv420p -
 | Vídeo pulado | Formato não suportado pela TV ou arquivo corrompido; o erro aparece em TVs → detalhes e no histórico |
 | Dashboard em branco | O site bloqueia iframe ou exige login: veja a seção acima |
 | Conteúdo antigo após revogar/reativar | Envie o comando **Limpar cache local** |
+| Bordas cortadas | Comando **Identificar tela** e ajuste a margem de segurança |
+| Imagem de cabeça para baixo em retrato | Troque *Retrato* por *Retrato invertido* |
+| Textos pequenos demais | Use uma resolução de exibição menor (ex.: HD 1280×720) |
 
 Comandos remotos (TVs → detalhes → Comandos remotos) são entregues no próximo heartbeat, em até
 30 segundos, e expiram em 10 minutos se a TV estiver desligada.

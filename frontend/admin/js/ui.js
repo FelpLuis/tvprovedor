@@ -239,6 +239,29 @@ export const PROFILE_KIND = {
   ZABBIX_PLAYER: ['zabbix', 'other'],
   UPDOWN_BI_PLAYER: ['updown_bi', 'other'],
 };
+export const ORIENTATIONS = {
+  landscape: 'Paisagem (horizontal)',
+  portrait: 'Retrato (TV em pé, girada 90°)',
+  landscape_flipped: 'Paisagem invertida (180°)',
+  portrait_flipped: 'Retrato invertido (270°)',
+};
+// resoluções do "palco" do player, em paisagem; em retrato largura e altura são invertidas
+export const RESOLUTIONS = [
+  ['auto', 'Automática (resolução detectada na TV)'],
+  ['1280x720', 'HD 1280×720 — textos maiores; TVs até 32"'],
+  ['1366x768', 'HD 1366×768 — TVs 32" e monitores'],
+  ['1920x1080', 'Full HD 1920×1080 — TVs 40" a 55" (recomendado)'],
+  ['2560x1440', 'QHD 2560×1440'],
+  ['3840x2160', '4K 3840×2160 — TVs 55" ou mais'],
+  ['custom', 'Personalizada…'],
+];
+export function suggestResolution(inches) {
+  if (!inches) return '';
+  if (inches <= 32) return 'Sugestão para ' + inches + '": HD 1280×720 ou 1366×768 (textos e dashboards maiores).';
+  if (inches < 55) return 'Sugestão para ' + inches + '": Full HD 1920×1080.';
+  return 'Sugestão para ' + inches + '": Full HD 1920×1080 para dashboards legíveis, ou 4K 3840×2160 para conteúdo em 4K.';
+}
+
 export const DASH_KINDS = { grafana: 'Grafana', powerbi: 'Power BI', zabbix: 'Zabbix', updown_bi: 'UpDown BI', other: 'Outro' };
 export const ROLES = { admin: 'Administrador', operator: 'Operador', viewer: 'Visualizador' };
 export const COMMANDS = {
@@ -247,6 +270,7 @@ export const COMMANDS = {
   restart_playback: 'Reiniciar reprodução',
   reload_page: 'Recarregar player',
   clear_cache: 'Limpar cache local',
+  identify: 'Identificar tela',
 };
 export const PLAYBACK = {
   playing: 'Reproduzindo', idle: 'Ocioso', loading: 'Carregando', error: 'Erro',

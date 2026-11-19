@@ -12,6 +12,8 @@
   <link rel="stylesheet" href="player.css">
 </head>
 <body>
+  <!-- Palco lógico: girado/escalado conforme a orientação e a resolução configuradas para a TV -->
+  <div id="display">
   <!-- Reprodução de mídia: duas camadas para transição suave -->
   <div id="stage" class="stage hidden">
     <div class="layer" id="layer-a"></div>
@@ -43,6 +45,12 @@
   <!-- Informações técnicas (tecla i / Info / Menu) -->
   <pre id="info" class="info hidden"></pre>
   <div id="fullscreen-hint" class="toast hidden">Pressione OK para tela cheia</div>
+  <!-- Identificação da tela (comando remoto "Identificar tela"): padrão de teste para instalação -->
+  <div id="identify" class="identify hidden">
+    <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+    <div class="identify-box"><div id="identify-title" class="identify-title"></div><pre id="identify-text"></pre></div>
+  </div>
+  </div>
 
   <script src="media-cache.js"></script>
   <script src="dashboard.js"></script>

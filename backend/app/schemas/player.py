@@ -27,6 +27,7 @@ class HeartbeatIn(BaseModel):
     config_hash: Optional[str] = Field(default=None, max_length=64)
     error: Optional[str] = Field(default=None, max_length=2000)
     storage: Optional[Dict[str, Any]] = None
+    display: Optional[Dict[str, Any]] = None  # resolução/orientação detectadas no aparelho
 
 
 class CommandAck(BaseModel):

@@ -1,12 +1,25 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from app.models.enums import CommandType, ScreenProfile, ScreenStatus
+from app.models.enums import CommandType, Orientation, ScreenProfile, ScreenStatus
 from app.schemas.common import IdName, ORMModel
 
 IDENTIFIER_PATTERN = r"^[A-Za-z0-9_\-]{1,32}$"
+# "auto" ou largura x altura em paisagem (ex.: 1920x1080); em retrato o player inverte
+RESOLUTION_PATTERN = r"^(auto|[0-9]{3,4}x[0-9]{3,4})$"
+
+
+def _check_resolution(v: Optional[str]) -> Optional[str]:
+    if v is None or v == "auto":
+        return v
+    w, h = (int(x) for x in v.split("x"))
+    if not (320 <= w <= 7680 and 240 <= h <= 4320):
+        raise ValueError("Resolução fora do intervalo suportado (320x240 a 7680x4320)")
+    if h > w:
+        w, h = h, w  # sempre armazenada em paisagem; a orientação define a rotação
+    return f"{w}x{h}"
 
 
 class GroupBase(BaseModel):
@@ -47,6 +60,12 @@ class ScreenBase(BaseModel):
     playlist_id: Optional[int] = None
     dashboard_id: Optional[int] = None
     refresh_seconds: Optional[int] = Field(default=None, ge=10, le=86400)
+    orientation: Orientation = Orientation.LANDSCAPE
+    resolution: str = Field(default="auto", pattern=RESOLUTION_PATTERN)
+    screen_inches: Optional[int] = Field(default=None, ge=7, le=150)
+    safe_margin_percent: int = Field(default=0, ge=0, le=10)
+
+    _res = field_validator("resolution")(_check_resolution)
 
 
 class ScreenCreate(ScreenBase):
@@ -65,6 +84,12 @@ class ScreenUpdate(BaseModel):
     playlist_id: Optional[int] = None
     dashboard_id: Optional[int] = None
     refresh_seconds: Optional[int] = Field(default=None, ge=10, le=86400)
+    orientation: Optional[Orientation] = None
+    resolution: Optional[str] = Field(default=None, pattern=RESOLUTION_PATTERN)
+    screen_inches: Optional[int] = Field(default=None, ge=7, le=150)
+    safe_margin_percent: Optional[int] = Field(default=None, ge=0, le=10)
+
+    _res = field_validator("resolution")(_check_resolution)
 
 
 class ScreenOut(ORMModel):
@@ -84,6 +109,11 @@ class ScreenOut(ORMModel):
     dashboard_id: Optional[int]
     dashboard: Optional[IdName]
     refresh_seconds: Optional[int]
+    orientation: Orientation
+    resolution: str
+    screen_inches: Optional[int]
+    safe_margin_percent: int
+    display_info: Optional[Dict[str, Any]]
     config_hash: Optional[str] = None
     applied_config_hash: Optional[str]
     in_sync: bool = False

@@ -59,6 +59,23 @@ def _maintenance(db: Session) -> None:
     db.commit()
 
 
+DISPLAY_KEYS = ("viewport", "screen", "dpr", "device_orientation", "logical", "rotation", "scale")
+
+
+def _clean_display(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """Aceita só os campos conhecidos, com valores simples e curtos."""
+    out: Dict[str, Any] = {}
+    for k in DISPLAY_KEYS:
+        v = raw.get(k)
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            out[k] = round(float(v), 3)
+        elif isinstance(v, str):
+            out[k] = v[:40]
+        elif isinstance(v, list) and len(v) == 2 and all(isinstance(x, (int, float)) for x in v):
+            out[k] = [int(v[0]), int(v[1])]
+    return out
+
+
 @router.post("/activation-codes", response_model=ActivationCodeOut, status_code=201)
 def request_activation_code(request: Request, data: ActivationCodeRequest = None, db: Session = Depends(get_db)):
     ip = client_ip(request)
@@ -144,6 +161,8 @@ def heartbeat(data: HeartbeatIn, request: Request, screen: Screen = Depends(get_
     screen.applied_config_hash = data.config_hash
     if data.storage is not None:
         screen.storage_info = {k: data.storage[k] for k in list(data.storage)[:10]}
+    if data.display is not None:
+        screen.display_info = _clean_display(data.display)
     if data.error:
         screen.last_error = data.error
         screen.last_error_at = now

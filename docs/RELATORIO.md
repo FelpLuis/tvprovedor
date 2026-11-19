@@ -32,13 +32,14 @@ passo em [INSTALACAO.md](INSTALACAO.md) e deve ser executada com autorização, 
 | 9 Segurança | ✅ | ver [ARQUITETURA.md](ARQUITETURA.md#segurança) |
 | 10 Implantação (systemd, Caddy, banco exclusivo, porta 8095) | 📄 documentado | `deploy/`, `docs/INSTALACAO.md` |
 | 11 Interface (escura/clara, responsiva, menu lateral, cards) | ✅ | `frontend/admin` |
-| 12 Testes automatizados | ✅ | `tests/` (38 testes) |
+| 12 Testes automatizados | ✅ | `tests/` (45 testes) |
 | 13 Monitoramento (disponibilidade, histórico, erros, versão, armazenamento) | ✅ | painel → TVs → detalhes |
 | 15 Versionamento (.env fora do Git, .env.example) | ✅ | `.gitignore`, `.env.example` |
+| Extra: orientação retrato/paisagem, resolução por TV, polegadas, margem de segurança, identificação de tela | ✅ | `player.js::applyDisplay`, migração `0002` |
 
 ## Testes executados
 
-### Automatizados (pytest): 38 testes, todos passando
+### Automatizados (pytest): 45 testes, todos passando
 
 Executados em **SQLite** e em **PostgreSQL 16** (`UDS_TEST_DATABASE_URL`), com Python 3.10
 (mesma versão do servidor):
@@ -86,6 +87,17 @@ sem diferenças entre os modelos e a migração.
   6. playlist alterada no painel → TV baixou e aplicou a nova sequência sozinha;
   7. **TV reiniciada sem rede:** voltou a reproduzir do cache, com o indicador de sem conexão;
   8. TV de dashboard carregou o iframe; após revogação voltou sozinha para a tela de ativação.
+
+### Disposição da tela (Chromium, TV simulada de 1280×720)
+
+- `?orientacao=retrato` antes da ativação: código exibido em pé (palco 720×1280 girado 90°).
+- TV em retrato com resolução Full HD e margem de 2%: palco 1080×1920, rotação 90°, escala 0,64
+  (cabe inteiro em 691×1229 px úteis); playlist reproduzindo em pé.
+- Comando *Identificar tela* exibido e confirmado; o painel recebeu a tela detectada.
+- Alteração para paisagem 1280×720 no painel aplicada sozinha pela TV (escala 0,96 com a margem).
+- Formulário do painel com resolução personalizada 1080×1920 salva como 1920×1080 + retrato.
+- Migração `0002` aplicada em PostgreSQL com TVs existentes (todas ficaram em paisagem/automática)
+  e revertida com sucesso.
 
 ### Ainda não testado
 
