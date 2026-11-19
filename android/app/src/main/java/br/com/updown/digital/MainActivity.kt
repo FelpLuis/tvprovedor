@@ -73,6 +73,7 @@ class MainActivity : Activity() {
         allowWakeOverLock()
         container = FrameLayout(this).apply { setBackgroundColor(Color.rgb(20, 0, 88)) }
         setContentView(container)
+        DeviceOwner.applyPolicies(this)
         setup = SetupAssistant(this)
         cameraWall = CameraWall(this, container)
         createWebView()

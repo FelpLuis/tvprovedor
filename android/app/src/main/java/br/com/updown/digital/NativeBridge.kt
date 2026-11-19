@@ -119,6 +119,18 @@ class NativeBridge(private val activity: MainActivity) {
         return cameraStatus
     }
 
+    /** Como as atualizações são instaladas: silenciosa ou com confirmação. */
+    @JavascriptInterface
+    fun getSilentUpdate(): String = DeviceOwner.silentUpdateMode(activity)
+
+    /** Comando "Reiniciar TV" (modo proprietário do dispositivo). */
+    @JavascriptInterface
+    fun rebootDevice(): String = if (trusted()) DeviceOwner.reboot(activity) else "não permitido"
+
+    /** Comando "Liberar controle do aparelho": desfaz o modo proprietário. */
+    @JavascriptInterface
+    fun releaseOwner(): String = if (trusted()) DeviceOwner.release(activity) else "não permitido"
+
     @JavascriptInterface
     fun reload() {
         if (trusted()) activity.reloadPlayer()

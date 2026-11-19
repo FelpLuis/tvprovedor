@@ -282,6 +282,8 @@
     if (setupStatus) { r.setup = String(setupStatus); }
     var upd = nativeCall('getUpdateStatus');
     if (upd) { r.update = String(upd); }
+    var silent = nativeCall('getSilentUpdate');
+    if (silent) { r.silent_update = String(silent); }
     var camStatus = nativeCall('getCameraStatus');
     if (camStatus) { r.cameras = String(camStatus); }
     return r;
@@ -836,6 +838,23 @@
         if (NATIVE && typeof NATIVE.runSetup === 'function') {
           nativeCall('runSetup');
           ack(cmd, true, 'assistente aberto na TV');
+        } else {
+          ack(cmd, false, 'disponível apenas no app UpDown Digital');
+        }
+        break;
+      case 'reboot':
+        if (NATIVE && typeof NATIVE.rebootDevice === 'function') {
+          var res = String(nativeCall('rebootDevice'));
+          // o ack vai antes: o aparelho reinicia logo em seguida
+          ack(cmd, res === 'reiniciando', res);
+        } else {
+          ack(cmd, false, 'disponível apenas no app UpDown Digital');
+        }
+        break;
+      case 'release_owner':
+        if (NATIVE && typeof NATIVE.releaseOwner === 'function') {
+          var rel = String(nativeCall('releaseOwner'));
+          ack(cmd, rel.indexOf('removido') >= 0, rel);
         } else {
           ack(cmd, false, 'disponível apenas no app UpDown Digital');
         }

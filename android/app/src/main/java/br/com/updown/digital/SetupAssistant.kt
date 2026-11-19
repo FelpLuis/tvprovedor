@@ -28,7 +28,7 @@ class SetupAssistant(private val activity: MainActivity) {
             Step("overlay", "Modo quiosque: abrir sozinho ao ligar a TV",
                 "Essencial para o app abrir sozinho depois de uma queda de energia e voltar para a frente se outra tela abrir. " +
                     "Na próxima tela, ative \"Permitir sobreposição\" (exibir sobre outros apps) para o UpDown Digital.",
-                { Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(activity) },
+                { Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(activity) && !DeviceOwner.isOwner(activity) },
                 { open(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${activity.packageName}"))) }),
             Step("admin", "Ligar e desligar pelo gerenciador",
                 "Na próxima tela, ative o administrador do dispositivo. Ele só é usado para apagar a tela (modo espera).",
@@ -51,7 +51,7 @@ class SetupAssistant(private val activity: MainActivity) {
                 { if (Build.VERSION.SDK_INT >= 26) open(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${activity.packageName}"))) }),
             Step("home", "Usar como tela inicial (modo quiosque)",
                 "Recomendado para TVs dedicadas: a TV sempre volta para a programação. Na próxima tela, escolha \"UpDown Digital\" e \"Sempre\".",
-                { !isDefaultHome() },
+                { !isDefaultHome() && !DeviceOwner.isOwner(activity) },
                 { enableKioskHome() }),
         )
     }

@@ -283,6 +283,7 @@ function infoPane(s) {
     kv('IP', s.last_ip), kv('Navegador', s.user_agent),
     kv('Tela configurada', displayConfigured(s)),
     kv('Tela detectada', displayDetected(s.display_info)),
+    kv('Atualização do app', (s.display_info || {}).silent_update),
     s.profile === 'CAMERA_PLAYER' ? kv('CFTV (informado pela TV)', (s.display_info || {}).cameras || (s.online ? 'sem informação (TV sem o app?)' : 'TV offline')) : null,
     kv('Armazenamento local', st.usage !== undefined ? `${fmtBytes(st.usage)} de ${fmtBytes(st.quota)}${st.downloading ? ' · baixando ' + st.downloading : ''}` : null),
     kv('Último erro', s.last_error ? `${s.last_error} (${fmtDate(s.last_error_at)})` : null),
@@ -405,6 +406,9 @@ async function commandsPane(s) {
   const buttons = session.can('operator') && s.activated
     ? h('div', { class: 'row' }, Object.entries(COMMANDS).map(([k, l]) => btn(l, async () => {
       if (k === 'clear_cache' && !await confirmDialog('Limpar cache', 'A TV apagará as mídias baixadas e fará o download novamente.')) return;
+      if (k === 'reboot' && !await confirmDialog('Reiniciar TV', 'O aparelho será reiniciado e voltará sozinho para a programação. Requer o modo proprietário do dispositivo.')) return;
+      if (k === 'release_owner' && !await confirmDialog('Liberar controle do aparelho',
+        'Remove o modo proprietário: as atualizações voltam a pedir confirmação e a tela inicial deixa de ser fixa. Use antes de desinstalar o app ou devolver a TV.', { danger: true, okLabel: 'Liberar' })) return;
       try { await post(`/screens/${s.id}/commands`, { command: k }); toast('Comando enviado. Será executado no próximo contato da TV.', 'success'); refresh(); } catch (e) { toastError(e); }
     }, { cls: 'sm' })))
     : h('div', { class: 'muted small' }, s.activated ? 'Somente operadores e administradores podem enviar comandos.' : 'A TV ainda não foi ativada.');

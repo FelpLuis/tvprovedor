@@ -293,6 +293,8 @@ export const COMMANDS = {
   identify: 'Identificar tela',
   update_app: 'Atualizar app',
   app_setup: 'Configurar app na TV',
+  reboot: 'Reiniciar TV',
+  release_owner: 'Liberar controle do aparelho',
 };
 export const PLAYBACK = {
   playing: 'Reproduzindo', idle: 'Ocioso', loading: 'Carregando', error: 'Erro',

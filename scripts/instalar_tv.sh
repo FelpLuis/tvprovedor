@@ -6,6 +6,8 @@
 #
 # Opções:
 #   --quiosque        o app vira a tela inicial da TV (abre sempre; recomendado para TVs dedicadas)
+#   --proprietario    modo proprietário do dispositivo: atualizações SEM confirmação, tela inicial
+#                     fixa e reinício pelo gerenciador (a TV não pode ter conta Google no momento)
 #   --apk ARQUIVO     usa um APK local em vez de baixar do servidor
 #   --servidor URL    servidor do UpDown Digital (padrão: https://tv.updown.com.br)
 #   --sem-ajustes     não altera protetor de tela/suspensão da TV
@@ -18,12 +20,14 @@ PKG="br.com.updown.digital"
 SERVER="https://tv.updown.com.br"
 APK=""
 KIOSK=0
+OWNER=0
 TWEAKS=1
 TARGETS=()
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --quiosque) KIOSK=1 ;;
+    --proprietario) OWNER=1; KIOSK=1 ;;
     --apk) APK="${2:?informe o arquivo}"; shift ;;
     --servidor) SERVER="${2:?informe a URL}"; shift ;;
     --sem-ajustes) TWEAKS=0 ;;
@@ -78,6 +82,17 @@ for target in "${TARGETS[@]}"; do
     run settings put secure screensaver_enabled 0 2>/dev/null || true
     run settings put secure sleep_timeout 0 2>/dev/null || true
     run settings put system screen_off_timeout 2147483647 2>/dev/null || true
+  fi
+
+  if [ "$OWNER" = 1 ]; then
+    echo "Ativando modo proprietário do dispositivo..."
+    if out=$(run dpm set-device-owner "$PKG/.PowerAdminReceiver" 2>&1) && echo "$out" | grep -qi "success"; then
+      echo "Modo proprietário: ativado (atualizações sem confirmação)."
+    else
+      echo "Modo proprietário NÃO ativado: $out" | tr -d '\r'
+      echo "  Causa comum: há conta Google (ou outra conta) na TV. Remova em Configurações → Contas,"
+      echo "  rode o script de novo com --proprietario e depois adicione a conta novamente, se quiser."
+    fi
   fi
 
   if [ "$KIOSK" = 1 ]; then

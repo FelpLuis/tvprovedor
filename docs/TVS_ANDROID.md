@@ -90,6 +90,37 @@ Isso compila, copia o APK para `frontend/app/updown-digital.apk` e gera `fronten
 Depois do commit e da atualização do servidor, as TVs se atualizam sozinhas. Todas as versões são
 assinadas com a chave do projeto (`android/keystore/`), por isso instalam por cima sem desinstalar.
 
+### Atualização sem confirmação (silenciosa)
+
+O Android só instala atualizações sem pedir OK em dois casos:
+
+| Situação | Comportamento |
+|---|---|
+| **Modo proprietário do dispositivo** (qualquer Android) | Sempre silenciosa. Também fixa o app como tela inicial e libera o comando **Reiniciar TV**. |
+| Android 12 ou superior, sem o modo proprietário | A 1ª atualização pede OK (o app foi instalado pelo Downloader/pen drive); as seguintes, instaladas pelo próprio app, são silenciosas. |
+| Android 11 ou anterior, sem o modo proprietário | Toda atualização pede OK na TV. |
+
+O painel mostra em **TVs → detalhes → Atualização do app** qual é o caso de cada TV.
+
+**Ativar o modo proprietário** (uma única vez por TV, de um notebook na rede da TV com ADB):
+
+1. Na TV, remova temporariamente as contas (Configurações → Contas e login → remover a conta
+   Google). O Android só aceita o modo proprietário em aparelho sem contas.
+2. Ative as opções do desenvolvedor e a depuração pela rede (ver "Instalação em lote por ADB").
+3. Rode:
+
+   ```bash
+   scripts/instalar_tv.sh IP_DA_TV --proprietario
+   ```
+
+   ou, manualmente: `adb connect IP_DA_TV:5555` e
+   `adb shell dpm set-device-owner br.com.updown.digital/.PowerAdminReceiver`.
+4. Depois disso, a conta Google pode ser adicionada de novo, se necessário. O IP da TV pode mudar
+   à vontade: o ADB não é mais usado.
+
+Para **desinstalar o app** ou devolver a TV, envie antes o comando **Liberar controle do aparelho**:
+sem isso, o Android não deixa desinstalar um app proprietário (só com restauração de fábrica).
+
 ### Instalação em lote por ADB (opcional)
 
 Só para preparar muitas TVs de uma vez, num notebook **na mesma rede das TVs**, durante a

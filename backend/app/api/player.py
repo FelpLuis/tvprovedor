@@ -62,7 +62,7 @@ def _maintenance(db: Session) -> None:
 
 DISPLAY_KEYS = ("viewport", "screen", "dpr", "device_orientation", "logical", "rotation", "scale",
                 "client", "app", "device", "android", "fullscreen", "power", "volume", "power_control",
-                "setup", "update", "cameras")
+                "setup", "update", "cameras", "silent_update")
 
 
 def _clean_display(raw: Dict[str, Any]) -> Dict[str, Any]:
