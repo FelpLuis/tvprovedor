@@ -1,0 +1,265 @@
+"""Proxy de dashboards: exibe páginas de BI dentro do player (iframe) pelo próprio servidor.
+
+    /dash/{id}/<caminho>  ->  <origem do dashboard>/<caminho>
+
+- remove os bloqueios de incorporação (X-Frame-Options / CSP frame-ancestors);
+- reescreve redirecionamentos, cookies e links absolutos para continuarem sob /dash/{id}/;
+- um service worker (escopo /dash/{id}/) redireciona as requisições que a página monta em
+  JavaScript (ex.: fetch('/api/…')) para o proxy;
+- como a página fica na mesma origem do player, o player consegue preencher o login sozinho.
+
+Acesso: TVs ativadas (cookie de sessão assinado, emitido pela API do player) ou usuários logados
+no painel. O destino é sempre a origem cadastrada no dashboard (nunca uma URL arbitrária).
+"""
+import hashlib
+import hmac
+import re
+import time
+from typing import Optional
+from urllib.parse import urlsplit
+
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy.orm import Session
+
+from app.core.config import get_settings
+from app.core.permissions import get_current_screen
+from app.core.security import decode_session_token
+from app.database import get_db
+from app.models import Dashboard, Screen, User
+
+router = APIRouter(tags=["dashboards-proxy"])
+
+COOKIE_PREFIX = "uds_dash_"
+SESSION_TTL = 24 * 3600
+MAX_BODY = 50 * 1024 * 1024
+HOP_HEADERS = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailers",
+               "transfer-encoding", "upgrade", "host", "content-length", "accept-encoding"}
+DROP_RESPONSE = {"x-frame-options", "content-security-policy", "content-security-policy-report-only",
+                 "content-length", "transfer-encoding", "content-encoding", "connection", "keep-alive",
+                 "strict-transport-security", "set-cookie", "location"}
+
+_client: Optional[httpx.AsyncClient] = None
+
+
+def get_client() -> httpx.AsyncClient:
+    global _client
+    if _client is None:
+        _client = httpx.AsyncClient(follow_redirects=False, timeout=httpx.Timeout(30.0, connect=10.0), verify=True)
+    return _client
+
+
+def set_client(client: Optional[httpx.AsyncClient]) -> None:
+    """Testes: injeta um cliente com transporte simulado."""
+    global _client
+    _client = client
+
+
+# ---------------------------------------------------------------- sessão (cookie assinado)
+
+def _sig(dash_id: int, exp: int) -> str:
+    msg = f"dash:{dash_id}:{exp}".encode()
+    return hmac.new(get_settings().secret_key.encode(), msg, hashlib.sha256).hexdigest()[:40]
+
+
+def make_session(dash_id: int) -> str:
+    exp = int(time.time()) + SESSION_TTL
+    return f"{exp}.{_sig(dash_id, exp)}"
+
+
+def _valid_session(dash_id: int, value: Optional[str]) -> bool:
+    try:
+        exp_s, sig = (value or "").split(".", 1)
+        exp = int(exp_s)
+    except ValueError:
+        return False
+    return exp > time.time() and hmac.compare_digest(_sig(dash_id, exp), sig)
+
+
+def _authorized(request: Request, db: Session, dash_id: int) -> bool:
+    if _valid_session(dash_id, request.cookies.get(f"{COOKIE_PREFIX}{dash_id}")):
+        return True
+    token = request.cookies.get(get_settings().cookie_name)  # painel (pré-visualização)
+    payload = decode_session_token(token) if token else None
+    if payload:
+        user = db.get(User, int(payload["sub"]))
+        return bool(user and user.is_active and user.session_version == payload.get("sv"))
+    return False
+
+
+def proxied_url(d: Dashboard, url: Optional[str] = None) -> str:
+    """URL do dashboard através do proxy (caminho + consulta da URL cadastrada)."""
+    parts = urlsplit(url or d.url)
+    path = parts.path or "/"
+    return f"/dash/{d.id}{path}" + (f"?{parts.query}" if parts.query else "")
+
+
+@router.post("/api/player/dashboards/{dash_id}/session")
+def player_session(dash_id: int, response: Response, screen: Screen = Depends(get_current_screen),
+                   db: Session = Depends(get_db)):
+    """A TV pede acesso ao proxy do seu dashboard; recebe um cookie válido por 24 h."""
+    d = db.get(Dashboard, dash_id)
+    if d is None or screen.dashboard_id != d.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Dashboard não vinculado a esta TV")
+    response.set_cookie(f"{COOKIE_PREFIX}{d.id}", make_session(d.id), max_age=SESSION_TTL, httponly=True,
+                        secure=get_settings().secure_cookies, samesite="lax", path=f"/dash/{d.id}/")
+    from app.services.screens import build_dashboard_url
+
+    return {"url": proxied_url(d, build_dashboard_url(d))}
+
+
+# ---------------------------------------------------------------- reescritas
+
+def _rewrite_location(loc: str, origin: str, prefix: str) -> str:
+    if loc.startswith(origin):
+        return prefix + (loc[len(origin):] or "/")
+    if loc.startswith("/") and not loc.startswith("//"):
+        return prefix + loc
+    return loc
+
+
+def _rewrite_cookie(raw: str, prefix: str) -> str:
+    parts = [p.strip() for p in raw.split(";")]
+    keep = [parts[0]]
+    for p in parts[1:]:
+        k = p.split("=", 1)[0].strip().lower()
+        if k in ("domain", "path"):
+            continue
+        keep.append(p)
+    keep.append(f"Path={prefix}/")
+    return "; ".join(keep)
+
+
+_ATTR = re.compile(r'''(\s(?:href|src|action|poster|data-src)\s*=\s*)(["'])/(?!/)''', re.I)
+_CSS_URL = re.compile(r'''url\(\s*(["']?)/(?!/)''', re.I)
+
+
+def _rewrite_html(html: str, prefix: str, dash_id: int) -> str:
+    html = _ATTR.sub(lambda m: f"{m.group(1)}{m.group(2)}{prefix}/", html)
+    html = _CSS_URL.sub(lambda m: f"url({m.group(1)}{prefix}/", html)
+    shim = f'<script src="{prefix}/__uds_shim.js"></script>'
+    m = re.search(r"<head[^>]*>", html, re.I)
+    return html[:m.end()] + shim + html[m.end():] if m else shim + html
+
+
+def _rewrite_css(css: str, prefix: str) -> str:
+    return _CSS_URL.sub(lambda m: f"url({m.group(1)}{prefix}/", css)
+
+
+SHIM_JS = """(function(){
+  // registra o service worker do proxy; na primeira vez recarrega para ele assumir a página
+  if (!('serviceWorker' in navigator)) return;
+  var p = '%(prefix)s/';
+  navigator.serviceWorker.register(p + '__uds_sw.js', { scope: p }).then(function () {
+    if (!navigator.serviceWorker.controller) {
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (!sessionStorage.getItem('uds_sw_reload')) { sessionStorage.setItem('uds_sw_reload', '1'); location.reload(); }
+      });
+    }
+  }).catch(function () {});
+})();"""
+
+SW_JS = """'use strict';
+// redireciona para o proxy as requisições que a página do dashboard faz para caminhos absolutos
+var PREFIX = '%(prefix)s';
+self.addEventListener('install', function () { self.skipWaiting(); });
+self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
+self.addEventListener('fetch', function (event) {
+  var req = event.request;
+  var url = new URL(req.url);
+  if (url.origin !== self.location.origin || url.pathname.indexOf(PREFIX + '/') === 0) return;
+  if (req.mode === 'navigate') {
+    event.respondWith(Response.redirect(PREFIX + url.pathname + url.search, 302));
+    return;
+  }
+  event.respondWith((req.method === 'GET' || req.method === 'HEAD' ? Promise.resolve(undefined) : req.clone().arrayBuffer())
+    .then(function (body) {
+      return fetch(PREFIX + url.pathname + url.search, {
+        method: req.method, headers: req.headers, body: body, credentials: 'include', redirect: 'manual'
+      });
+    }));
+});
+"""
+
+
+# ---------------------------------------------------------------- rota do proxy
+
+@router.api_route("/dash/{dash_id}/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+                  include_in_schema=False)
+async def proxy(dash_id: int, path: str, request: Request, db: Session = Depends(get_db)):
+    d = db.get(Dashboard, dash_id)
+    if d is None or not d.is_active:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Dashboard não encontrado")
+    if not _authorized(request, db, dash_id):
+        return HTMLResponse("<h3>Acesso não autorizado ao dashboard.</h3>", status_code=401)
+    prefix = f"/dash/{dash_id}"
+    if path == "__uds_shim.js":
+        return Response(SHIM_JS % {"prefix": prefix}, media_type="application/javascript",
+                        headers={"Cache-Control": "no-cache"})
+    if path == "__uds_sw.js":
+        return Response(SW_JS % {"prefix": prefix}, media_type="application/javascript",
+                        headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": prefix + "/"})
+
+    base = urlsplit(d.url)
+    origin = f"{base.scheme}://{base.netloc}"
+    target = f"{origin}/{path}" + (f"?{request.url.query}" if request.url.query else "")
+
+    headers = {}
+    for k, v in request.headers.items():
+        lk = k.lower()
+        if lk in HOP_HEADERS or lk.startswith("x-forwarded") or lk in ("cookie", "origin", "referer"):
+            continue
+        headers[k] = v
+    # cookies do próprio dashboard (os do UpDown Digital ficam no servidor)
+    upstream_cookies = "; ".join(f"{k}={v}" for k, v in request.cookies.items()
+                                 if not k.startswith(COOKIE_PREFIX) and k != get_settings().cookie_name)
+    if upstream_cookies:
+        headers["Cookie"] = upstream_cookies
+    if request.headers.get("origin"):
+        headers["Origin"] = origin
+    ref = request.headers.get("referer", "")
+    if prefix in ref:
+        headers["Referer"] = origin + ref.split(prefix, 1)[1]
+    headers["Accept-Encoding"] = "identity"
+
+    body = await request.body()
+    try:
+        up = await get_client().request(request.method, target, headers=headers, content=body or None)
+    except httpx.HTTPError as e:
+        return HTMLResponse(f"<h3>Não foi possível acessar o dashboard ({type(e).__name__}).</h3>", status_code=502)
+
+    content = up.content[:MAX_BODY]
+    ctype = up.headers.get("content-type", "")
+    if "text/html" in ctype:
+        enc = up.encoding or "utf-8"
+        content = _rewrite_html(content.decode(enc, errors="replace"), prefix, dash_id).encode(enc, errors="replace")
+    elif "text/css" in ctype:
+        enc = up.encoding or "utf-8"
+        content = _rewrite_css(content.decode(enc, errors="replace"), prefix).encode(enc, errors="replace")
+
+    resp = Response(content=content, status_code=up.status_code)
+    for k, v in up.headers.multi_items():
+        if k.lower() not in DROP_RESPONSE:
+            resp.headers.append(k, v)
+    if "location" in up.headers:
+        resp.headers["Location"] = _rewrite_location(up.headers["location"], origin, prefix)
+    for raw in up.headers.get_list("set-cookie"):
+        resp.headers.append("Set-Cookie", _rewrite_cookie(raw, prefix))
+    resp.headers["X-Frame-Options"] = "SAMEORIGIN"
+    return resp
+
+
+def referer_dash_prefix(request: Request) -> Optional[str]:
+    """Se a requisição veio de uma página do proxy, devolve /dash/{id} (para corrigir links absolutos)."""
+    ref = request.headers.get("referer", "")
+    m = re.search(r"/dash/(\d+)/", ref)
+    return f"/dash/{m.group(1)}" if m else None
+
+
+def fallback_redirect(request: Request) -> Optional[RedirectResponse]:
+    prefix = referer_dash_prefix(request)
+    if prefix and not request.url.path.startswith("/dash/"):
+        target = prefix + request.url.path + (f"?{request.url.query}" if request.url.query else "")
+        return RedirectResponse(target, status_code=307)
+    return None

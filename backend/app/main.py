@@ -10,7 +10,8 @@ from sqlalchemy.exc import DBAPIError, OperationalError
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import auth, cameras, dashboards, groups, media, player, playlists, screens, system, users
+from app.api import auth, cameras, dash_proxy, dashboards, groups, media, player, playlists, screens, system, users
+from app.api.dash_proxy import fallback_redirect
 from app.api.system import APP_VERSION
 from app.core.config import get_settings
 from app.services.media import ensure_storage_dirs
@@ -34,6 +35,14 @@ class SecurityHeaders(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         path = request.url.path
+        if response.status_code == 404:
+            # link absoluto de uma página do proxy de dashboards (ex.: "/login"): volta para /dash/{id}/
+            redirect = fallback_redirect(request)
+            if redirect is not None:
+                return redirect
+        if path.startswith("/dash/"):
+            # conteúdo do dashboard: cabeçalhos definidos pelo proxy (pode ser exibido no player)
+            return response
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "same-origin")
         if path.startswith("/api/"):
@@ -72,6 +81,7 @@ def create_app() -> FastAPI:
 
     for r in (auth, users, groups, screens, media, playlists, dashboards, cameras, player, system):
         app.include_router(r.router, prefix="/api")
+    app.include_router(dash_proxy.router)
 
     @app.exception_handler(OperationalError)
     async def database_unavailable(request: Request, exc: DBAPIError):

@@ -52,6 +52,17 @@ se conecta a elas. Funciona com TVs em outras redes, atrás de NAT/firewall, sem
 Comandos, programação, tela, energia e volume chegam na resposta do heartbeat (30 s); em espera,
 o app Android consulta `GET /api/player/power` a cada minuto.
 
+## Proxy de dashboards
+
+`/dash/{id}/…` (`api/dash_proxy.py`) repassa as requisições para a origem cadastrada no dashboard
+(httpx), remove `X-Frame-Options`/CSP, reescreve `Location`, cookies (`Path=/dash/{id}/`, sem
+`Domain`) e links absolutos em HTML/CSS, e injeta um service worker (escopo `/dash/{id}/`) que
+redireciona as requisições montadas em JavaScript. Requisições absolutas que escapem (404 com
+`Referer` de uma página do proxy) são redirecionadas para `/dash/{id}/…`. Acesso por cookie
+assinado (24 h) emitido em `POST /api/player/dashboards/{id}/session` para a TV vinculada, ou pela
+sessão do painel. Como a página fica na mesma origem do player, o login automático é feito pelo
+próprio player dentro do iframe.
+
 ## CFTV
 
 Câmeras/canais (`cameras`) guardam a senha criptografada (Fernet, chave derivada de

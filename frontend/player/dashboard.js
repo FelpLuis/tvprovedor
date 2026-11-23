@@ -102,6 +102,7 @@
       self.retryDelay = 10;
       self.lastLoadedAt = new Date();
       self._report('playing', cfg.name);
+      if (self.hooks.onLoad) { self.hooks.onLoad(frame, cfg); }
       self._scheduleRefresh();
     };
 
