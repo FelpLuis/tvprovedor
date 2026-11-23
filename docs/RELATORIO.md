@@ -32,7 +32,7 @@ passo em [INSTALACAO.md](INSTALACAO.md) e deve ser executada com autorização, 
 | 9 Segurança | ✅ | ver [ARQUITETURA.md](ARQUITETURA.md#segurança) |
 | 10 Implantação (systemd, Caddy, banco exclusivo, porta 8095) | 📄 documentado | `deploy/`, `docs/INSTALACAO.md` |
 | 11 Interface (escura/clara, responsiva, menu lateral, cards) | ✅ | `frontend/admin` |
-| 12 Testes automatizados | ✅ | `tests/` (60 testes) |
+| 12 Testes automatizados | ✅ | `tests/` (63 testes) |
 | 13 Monitoramento (disponibilidade, histórico, erros, versão, armazenamento) | ✅ | painel → TVs → detalhes |
 | 15 Versionamento (.env fora do Git, .env.example) | ✅ | `.gitignore`, `.env.example` |
 | Extra: orientação retrato/paisagem, resolução por TV, polegadas, margem de segurança, identificação de tela | ✅ | `player.js::applyDisplay`, migração `0002` |
@@ -41,10 +41,11 @@ passo em [INSTALACAO.md](INSTALACAO.md) e deve ser executada com autorização, 
 | Extra: instalação sem ADB (assistente de permissões no app) e atualização automática do app | ✅ compilado | `SetupAssistant.kt`, `UpdateManager.kt`, `/apk`, `/app/version.json` |
 | Extra: CFTV Intelbras (RTSP no app, mosaico, rodízio, cadastro de NVR) | ✅ compilado | `CameraWall.kt`, `api/cameras.py`, migração `0005` |
 | Extra: atualização silenciosa (proprietário do dispositivo), tela inicial fixa, reiniciar TV | ✅ compilado | `DeviceOwner.kt`, `instalar_tv.sh --proprietario` |
+| Extra: dashboards em navegador próprio com login automático (formulário ou HTTP) | ✅ compilado | `DashboardView.kt`, migração `0006` |
 
 ## Testes executados
 
-### Automatizados (pytest): 60 testes, todos passando
+### Automatizados (pytest): 63 testes, todos passando
 
 Executados em **SQLite** e em **PostgreSQL 16** (`UDS_TEST_DATABASE_URL`), com Python 3.10
 (mesma versão do servidor):

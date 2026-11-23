@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import conflict, get_or_404
+from app.core.crypto import encrypt
 from app.core.permissions import require_admin, require_viewer
 from app.database import get_db
 from app.models import Dashboard, Screen, User
@@ -16,8 +17,16 @@ router = APIRouter(prefix="/dashboards", tags=["dashboards"])
 
 def _out(db: Session, d: Dashboard) -> DashboardOut:
     count = db.scalar(select(func.count()).select_from(Screen).where(Screen.dashboard_id == d.id)) or 0
-    return DashboardOut.model_validate({**{c.name: getattr(d, c.name) for c in Dashboard.__table__.columns},
-                                        "options": d.options or {}, "screen_count": count})
+    data = {c.name: getattr(d, c.name) for c in Dashboard.__table__.columns if c.name != "password_encrypted"}
+    return DashboardOut.model_validate({**data, "options": d.options or {}, "screen_count": count,
+                                        "username": d.username or "", "login_url": d.login_url or "",
+                                        "has_password": bool(d.password_encrypted)})
+
+
+def _apply_password(d: Dashboard, values: dict) -> None:
+    if "password" in values:
+        pwd = values.pop("password")
+        d.password_encrypted = encrypt(pwd) if pwd else None
 
 
 def _values(data) -> dict:
@@ -42,7 +51,9 @@ def create_dashboard(data: DashboardCreate, request: Request, db: Session = Depe
                      user: User = Depends(require_admin)):
     if db.scalar(select(Dashboard).where(func.lower(Dashboard.name) == data.name.lower())):
         raise conflict("Já existe um dashboard com esse nome")
-    d = Dashboard(**_values(data))
+    values = _values(data)
+    pwd = values.pop("password", None)
+    d = Dashboard(**values, password_encrypted=encrypt(pwd) if pwd else None)
     db.add(d)
     db.flush()
     audit.record(db, "dashboard.created", request=request, user=user, entity_type="dashboard", entity_id=d.id,
@@ -61,11 +72,14 @@ def update_dashboard(dashboard_id: int, data: DashboardUpdate, request: Request,
                                                   Dashboard.id != d.id))
         if other:
             raise conflict("Já existe um dashboard com esse nome")
+    pwd_changed = "password" in changes
+    _apply_password(d, changes)
     for k, v in changes.items():
         setattr(d, k, v)
     d.version += 1
     audit.record(db, "dashboard.updated", request=request, user=user, entity_type="dashboard", entity_id=d.id,
-                 details={k: v for k, v in changes.items() if k != "url"} | ({"url": "alterada"} if "url" in changes else {}))
+                 details={k: v for k, v in changes.items() if k != "url"} | ({"url": "alterada"} if "url" in changes else {})
+                 | ({"password": "alterada"} if pwd_changed else {}))
     db.commit()
     return _out(db, d)
 

@@ -292,6 +292,27 @@ Conversão sugerida com ffmpeg (no computador de quem produz o conteúdo):
 ffmpeg -i entrada.mov -c:v libx264 -profile:v high -level 4.1 -pix_fmt yuv420p -vf "scale=1920:-2" -c:a aac -b:a 128k -movflags +faststart saida.mp4
 ```
 
+## Dashboards com login (UpDown BI, Grafana, Zabbix…)
+
+No **app UpDown Digital**, os dashboards abrem num navegador próprio em tela cheia (não em iframe):
+páginas que bloqueiam incorporação abrem normalmente e endereços internos em `http://` funcionam.
+
+Em **Dashboards BI → Editar → Autenticação**:
+
+- **Login e senha:** informe usuário e senha. O app encontra a tela de login, preenche e entra
+  sozinho (funciona também com telas montadas por JavaScript). A sessão fica salva; se expirar, ele
+  entra de novo. Se o login ficar em outro endereço, informe a **Página de login**. Se a detecção
+  automática não achar os campos, use os seletores avançados (ex.: `#email`, `button[type=submit]`).
+- **Autenticação HTTP:** para sistemas que abrem a janela de usuário/senha do navegador.
+
+Use um usuário **só de leitura**, dedicado às TVs. A senha fica criptografada no servidor, não
+aparece no painel e só é entregue às TVs ativadas. O estado aparece em **TVs → detalhes →
+Dashboard (informado pela TV)**: `carregando`, `entrando…`, `conectado`, `falha no login…` ou `erro…`.
+
+Tela preta com o símbolo do Android significa que a página não pôde ser exibida (bloqueio de
+iframe, `http://` ou erro do site). Com o app 1.6.0 os dois primeiros casos deixam de ocorrer; o
+painel mostra o motivo dos demais.
+
 ## Dashboards (Grafana, Power BI, Zabbix)
 
 - O dashboard precisa permitir exibição em `iframe`. No Grafana, isso pode exigir

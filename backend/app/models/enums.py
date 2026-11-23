@@ -64,6 +64,8 @@ class DashboardAuthType(str, Enum):
     NONE = "none"                    # URL pública / rede interna
     PUBLIC_EMBED = "public_embed"    # link de incorporação oficial (ex.: Power BI "Publish to web")
     BROWSER_SESSION = "browser_session"  # sessão já autenticada no navegador da TV
+    LOGIN_FORM = "login_form"        # o app preenche usuário/senha na tela de login e entra sozinho
+    HTTP_BASIC = "http_basic"        # autenticação HTTP (janela de usuário/senha do navegador)
 
 
 class DashboardDisplayMode(str, Enum):

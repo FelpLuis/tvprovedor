@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Somente HTTPS com certificados do sistema -->
+<!-- Certificados do sistema. http:// é permitido para dashboards internos (BI, Zabbix na rede
+     local); o player, as atualizações e a energia exigem https:// no próprio código do app. -->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="false">
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>

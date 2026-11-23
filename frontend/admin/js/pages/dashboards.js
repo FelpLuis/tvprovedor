@@ -4,6 +4,8 @@ import { session } from '../session.js';
 
 const AUTH = [
   ['none', 'Sem autenticação (rede interna / público)'],
+  ['login_form', 'Login e senha (o app entra sozinho na tela de login)'],
+  ['http_basic', 'Autenticação HTTP (janela de usuário e senha do navegador)'],
   ['public_embed', 'Link de incorporação oficial'],
   ['browser_session', 'Sessão já autenticada no navegador da TV'],
 ];
@@ -17,7 +19,7 @@ const GUIDE = {
   other: 'Outro: qualquer página compatível com exibição em iframe.',
 };
 
-function fields(values) {
+function fields(values, isEdit) {
   const guide = h('div', { class: 'alert info small full' }, GUIDE[values.kind || 'grafana']);
   return {
     guide,
@@ -26,7 +28,17 @@ function fields(values) {
       { name: 'kind', label: 'Plataforma', type: 'select', options: Object.entries(DASH_KINDS), onchange: (v) => { guide.textContent = GUIDE[v]; } },
       { name: 'url', label: 'URL', required: true, full: true, placeholder: 'https://grafana.updown.com.br/d/...' },
       { name: 'refresh_seconds', label: 'Recarregar a cada (s)', type: 'number', min: 0, default: 300, help: '0 = não recarregar' },
-      { name: 'auth_type', label: 'Autenticação', type: 'select', options: AUTH },
+      { name: 'auth_type', label: 'Autenticação', type: 'select', options: AUTH, full: true,
+        onchange: (v, inputs) => toggleAuth(v, inputs),
+        help: 'Com "Login e senha", o app UpDown Digital preenche a tela de login e entra sozinho; a sessão fica salva e, se expirar, ele entra de novo.' },
+      { name: 'username', label: 'Usuário', autocomplete: 'off', placeholder: 'tv.comercial', auth: true },
+      { name: 'password', label: isEdit ? 'Senha (vazio = manter a atual)' : 'Senha', type: 'password', autocomplete: 'new-password', omitEmpty: isEdit, auth: true },
+      { name: 'login_url', label: 'Página de login (opcional)', full: true, auth: true, placeholder: 'http://10.0.0.20:8080/login',
+        help: 'Só se o login ficar em outro endereço: o app entra por ela e depois abre a URL do dashboard.' },
+      { name: 'user_selector', label: 'Campo de usuário (avançado)', placeholder: '#email', auth: true,
+        help: 'Seletor CSS; vazio = detectar sozinho.' },
+      { name: 'submit_selector', label: 'Botão entrar (avançado)', placeholder: 'button[type=submit]', auth: true,
+        help: 'Seletor CSS; vazio = detectar sozinho.' },
       { name: 'display_mode', label: 'Modo de exibição', type: 'select', options: MODES, full: true,
         help: 'No modo direto, o player perde o controle da TV (sem heartbeat) até voltar para /player.' },
       { name: 'kiosk', label: 'Modo kiosk (Grafana/Zabbix)', type: 'checkbox', default: true },
@@ -39,8 +51,20 @@ function fields(values) {
   };
 }
 
+function toggleAuth(type, inputs) {
+  const login = type === 'login_form' || type === 'http_basic';
+  for (const [name, { el, def }] of Object.entries(inputs)) {
+    if (!def.auth) continue;
+    const onlyForm = ['login_url', 'user_selector', 'submit_selector'].includes(name);
+    el.closest('.field').classList.toggle('hidden', !login || (onlyForm && type !== 'login_form'));
+  }
+}
+
 function toBody(v, previous = {}) {
   const options = { ...(previous || {}) };
+  if (v.user_selector) options.user_selector = v.user_selector; else delete options.user_selector;
+  if (v.submit_selector) options.submit_selector = v.submit_selector; else delete options.submit_selector;
+  delete v.user_selector; delete v.submit_selector;
   options.kiosk = v.kiosk;
   if (v.theme) options.theme = v.theme; else delete options.theme;
   if (v.load_timeout_seconds) options.load_timeout_seconds = v.load_timeout_seconds;
@@ -51,8 +75,8 @@ function toBody(v, previous = {}) {
 
 function openForm(d, onDone) {
   const values = d ? { ...d, ...d.options, kiosk: d.options.kiosk !== false } : { kind: 'grafana', auth_type: 'none', display_mode: 'iframe' };
-  const f = fields(values);
-  formModal({
+  const f = fields(values, !!d);
+  const m = formModal({
     title: d ? `Editar ${d.name}` : 'Novo dashboard', wide: true, fields: f.list, values, extra: f.guide,
     submit: async (v) => {
       const body = toBody(v, d && d.options);
@@ -61,6 +85,7 @@ function openForm(d, onDone) {
       onDone();
     },
   });
+  toggleAuth(values.auth_type || 'none', m.form.inputs);
 }
 
 export async function render(root) {

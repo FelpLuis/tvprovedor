@@ -284,6 +284,11 @@
     if (upd) { r.update = String(upd); }
     var silent = nativeCall('getSilentUpdate');
     if (silent) { r.silent_update = String(silent); }
+    var dashStatus = nativeCall('getDashboardStatus');
+    if (dashStatus) {
+      r.dashboard = String(dashStatus);
+      if (/^(erro|falha)/.test(r.dashboard)) { setError('Dashboard: ' + r.dashboard); }
+    }
     var camStatus = nativeCall('getCameraStatus');
     if (camStatus) { r.cameras = String(camStatus); }
     return r;
@@ -628,6 +633,7 @@
 
   function stopAll() {
     nativeCall('hideCameras');
+    nativeCall('hideDashboard');
     stopMedia();
     dashboard.stop();
     clearTimeout(fullReloadTimer);
@@ -657,6 +663,19 @@
     if (cfg.mode === 'media') {
       startMedia(cfg.playlist);
       MediaCache.releaseUnused(playlistShas(cfg));
+    } else if (cfg.mode === 'dashboard' && NATIVE && typeof NATIVE.showDashboard === 'function') {
+      // app: navegador próprio em tela cheia (sem iframe), com login automático
+      var dd = displaySettings();
+      var dpayload = {};
+      for (var key in cfg.dashboard) { if (cfg.dashboard.hasOwnProperty(key)) { dpayload[key] = cfg.dashboard[key]; } }
+      dpayload.rotation = dd.rotation || 0;
+      dpayload.safe_margin_percent = dd.safe_margin_percent || 0;
+      show('stage');
+      nativeCall('showDashboard', JSON.stringify(dpayload));
+      state.playbackState = 'playing';
+      state.currentContent = cfg.dashboard.name;
+      var hoursN = cfg.dashboard.full_reload_hours || 12;
+      fullReloadTimer = setTimeout(function () { if (state.online) { location.reload(); } }, hoursN * 3600 * 1000);
     } else if (cfg.mode === 'dashboard') {
       show('dashboard');
       dashboard.start(cfg.dashboard);

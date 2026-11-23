@@ -15,8 +15,8 @@ android {
         applicationId = "br.com.updown.digital"
         minSdk = 21          // Android 5.0: cobre TVs e TV boxes antigas
         targetSdk = 34
-        versionCode = 6
-        versionName = "1.5.0"
+        versionCode = 7
+        versionName = "1.6.0"
         buildConfigField("String", "PLAYER_URL", "\"$playerUrl\"")
     }
 
