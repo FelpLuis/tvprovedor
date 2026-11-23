@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import auth, cameras, dash_proxy, dashboards, groups, media, player, playlists, screens, system, users
-from app.api.dash_proxy import fallback_redirect
+from app.api.dash_proxy import fallback_redirect, iframe_redirect
 from app.api.system import APP_VERSION
 from app.core.config import get_settings
 from app.services.media import ensure_storage_dirs
@@ -33,6 +33,9 @@ PLAYER_CSP = (
 
 class SecurityHeaders(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        redirect = iframe_redirect(request)
+        if redirect is not None:
+            return redirect
         response = await call_next(request)
         path = request.url.path
         if response.status_code == 404:

@@ -17,7 +17,7 @@ import hmac
 import re
 import time
 from typing import Optional
-from urllib.parse import urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -208,12 +208,27 @@ _META_REFRESH = re.compile(r"""(<meta[^>]+http-equiv\s*=\s*["']?refresh["']?[^>]
 _CSS_URL = re.compile(r"""url\(\s*(["']?)/(?!/)""", re.I)
 
 
-def _rewrite_html(html: str, site: Site, base: str) -> str:
+# caminhos do próprio UpDown Digital: a página do dashboard não pode assumir esses endereços
+RESERVED_PATHS = ("/api", "/player", "/dash", "/js/", "/css/", "/app/", "/apk", "/docs", "/redoc", "/openapi.json")
+CTX_COOKIE = "uds_dash_ctx"
+
+
+def _original_path(path_query: str) -> Optional[str]:
+    """Endereço original da página (ex.: /tv-isp) para aplicações que escolhem a tela pela URL."""
+    path = path_query.split("?", 1)[0]
+    if any(path == r or path.startswith(r if r.endswith("/") else r + "/") or path == r.rstrip("/")
+           for r in RESERVED_PATHS):
+        return None
+    return path_query
+
+
+def _rewrite_html(html: str, site: Site, base: str, original: Optional[str] = None) -> str:
     html = _ATTR.sub(lambda m: f"{m.group(1)}{m.group(2)}{base}/", html)
     html = _ATTR_ABS.sub(lambda m: f"{m.group(1)}{m.group(2)}{site.to_proxy(m.group(3)) or m.group(3)}", html)
     html = _META_REFRESH.sub(lambda m: m.group(1) + _rewrite_location(m.group(2).strip(), site, base), html)
     html = _CSS_URL.sub(lambda m: f"url({m.group(1)}{base}/", html)
-    shim = f'<script src="{site.prefix}/__uds_shim.js"></script>'
+    ctx = json.dumps({"base": base, "orig": original}).replace("</", "<\\/")
+    shim = f'<script>window.__udsProxy={ctx};</script><script src="{site.prefix}/__uds_shim.js"></script>'
     m = re.search(r"<head[^>]*>", html, re.I)
     return html[:m.end()] + shim + html[m.end():] if m else shim + html
 
@@ -223,9 +238,18 @@ def _rewrite_css(css: str, base: str) -> str:
 
 
 SHIM_JS = """(function(){
-  // registra o service worker do proxy; na primeira vez recarrega para ele assumir a página
+  var ctx = window.__udsProxy || {};
+  // aplicações que escolhem a tela pelo endereço (React/Vue/Angular) precisam ver o caminho
+  // original (ex.: /tv-isp) e não /dash/{id}/tv-isp; recarregar/links voltam ao proxy pelo servidor
+  if (ctx.orig) {
+    try { history.replaceState(history.state, '', ctx.orig + location.hash); } catch (e) {}
+  }
   if (!('serviceWorker' in navigator)) return;
   var p = '%(prefix)s/';
+  function announce() {
+    if (navigator.serviceWorker.controller && ctx.base) navigator.serviceWorker.controller.postMessage({ udsBase: ctx.base });
+  }
+  announce();
   navigator.serviceWorker.register(p + '__uds_sw.js', { scope: p }).then(function () {
     if (!navigator.serviceWorker.controller) {
       navigator.serviceWorker.addEventListener('controllerchange', function () {
@@ -255,19 +279,30 @@ function basePath(clientUrl) {
   var m = /^(\\/dash\\/\\d+(?:\\/~\\/https?\\/[^\\/]+)?)/.exec(clientUrl ? new URL(clientUrl).pathname : '');
   return m ? m[1] : PREFIX;
 }
+// página -> prefixo dela no proxy (a URL visível pode ter sido trocada para o caminho original)
+var BASES = {};
+self.addEventListener('message', function (e) {
+  if (e.data && e.data.udsBase && e.source && e.source.id) BASES[e.source.id] = e.data.udsBase;
+});
 self.addEventListener('install', function () { self.skipWaiting(); });
 self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
 self.addEventListener('fetch', function (event) {
   var req = event.request;
   var url = new URL(req.url);
   var sameOrigin = url.origin === self.location.origin;
-  if (sameOrigin && url.pathname.indexOf(PREFIX + '/') === 0) return;
+  if (sameOrigin && url.pathname.indexOf(PREFIX + '/') === 0) {
+    if (req.mode === 'navigate' && event.resultingClientId) {
+      BASES[event.resultingClientId] = basePath(req.url);
+    }
+    return;
+  }
   if (!sameOrigin && !allowed(url)) return;
   event.respondWith((async function () {
     var target;
     if (sameOrigin) {
       var client = event.clientId ? await self.clients.get(event.clientId) : null;
-      target = basePath(client && client.url) + url.pathname + url.search;
+      var b = (event.clientId && BASES[event.clientId]) || basePath(client && client.url);
+      target = b + url.pathname + url.search;
     } else {
       target = proxied(url);
     }
@@ -338,7 +373,8 @@ async def proxy(dash_id: int, path: str, request: Request, db: Session = Depends
     ctype = up.headers.get("content-type", "")
     if "text/html" in ctype:
         enc = up.encoding or "utf-8"
-        content = _rewrite_html(content.decode(enc, errors="replace"), site, base).encode(enc, errors="replace")
+        original = _original_path(tparts.path + (f"?{tparts.query}" if tparts.query else ""))
+        content = _rewrite_html(content.decode(enc, errors="replace"), site, base, original).encode(enc, errors="replace")
     elif "text/css" in ctype:
         enc = up.encoding or "utf-8"
         content = _rewrite_css(content.decode(enc, errors="replace"), base).encode(enc, errors="replace")
@@ -352,6 +388,10 @@ async def proxy(dash_id: int, path: str, request: Request, db: Session = Depends
     for raw in up.headers.get_list("set-cookie"):
         resp.headers.append("Set-Cookie", _rewrite_cookie(raw, site.prefix))
     resp.headers["X-Frame-Options"] = "SAMEORIGIN"
+    if "text/html" in ctype:
+        # lembra de qual dashboard é a página exibida (para recarregar no endereço original)
+        resp.set_cookie(CTX_COOKIE, quote(base, safe="/~"), httponly=True, samesite="lax", path="/",
+                        secure=get_settings().secure_cookies)
     return resp
 
 
@@ -359,6 +399,21 @@ def referer_dash_prefix(request: Request) -> Optional[str]:
     """Se a requisição veio de uma página do proxy, devolve o prefixo dela (para corrigir links absolutos)."""
     m = re.search(r"(/dash/\d+(?:/~/https?/[^/?#]+)?)/", request.headers.get("referer", ""))
     return m.group(1) if m else None
+
+
+def iframe_redirect(request: Request) -> Optional[RedirectResponse]:
+    """Página de dashboard (no iframe) recarregada pelo endereço original: volta para o proxy.
+
+    O painel e o player nunca são abertos em iframe (X-Frame-Options), então uma navegação de
+    iframe fora de /dash/ com o cookie de contexto só pode ser de um dashboard.
+    """
+    if request.headers.get("sec-fetch-dest") != "iframe" or request.url.path.startswith("/dash/"):
+        return None
+    ctx = unquote(request.cookies.get(CTX_COOKIE, ""))
+    if not re.fullmatch(r"/dash/\d+(?:/~/https?/[^/?#]+)?", ctx):
+        return None
+    target = ctx + request.url.path + (f"?{request.url.query}" if request.url.query else "")
+    return RedirectResponse(target, status_code=307)
 
 
 def fallback_redirect(request: Request) -> Optional[RedirectResponse]:

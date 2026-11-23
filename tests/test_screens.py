@@ -41,6 +41,9 @@ def test_profile_dashboard_compatibility(client, admin):
     assert r.status_code == 201
     assert r.json()["effective_content"] == "Dashboard: PBI Comercial"
     assert admin.delete(f"/api/dashboards/{d['id']}").status_code == 409
+    screen_id = r.json()["id"]
+    assert admin.delete(f"/api/dashboards/{d['id']}?force=true").status_code == 204
+    assert admin.get(f"/api/screens/{screen_id}").json()["dashboard_id"] is None
 
 
 def test_operator_can_set_playlist_but_not_edit_screen(client, admin):

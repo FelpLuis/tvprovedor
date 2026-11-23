@@ -85,12 +85,14 @@ def update_dashboard(dashboard_id: int, data: DashboardUpdate, request: Request,
 
 
 @router.delete("/{dashboard_id}", status_code=204)
-def delete_dashboard(dashboard_id: int, request: Request, db: Session = Depends(get_db),
+def delete_dashboard(dashboard_id: int, request: Request, force: bool = False, db: Session = Depends(get_db),
                      user: User = Depends(require_admin)):
     d = get_or_404(db, Dashboard, dashboard_id, "Dashboard")
-    count = db.scalar(select(func.count()).select_from(Screen).where(Screen.dashboard_id == d.id)) or 0
-    if count:
-        raise conflict(f"Dashboard em uso por {count} TV(s)")
+    screens = db.scalars(select(Screen).where(Screen.dashboard_id == d.id)).unique().all()
+    if screens and not force:
+        raise conflict(f"Dashboard em uso por {len(screens)} TV(s)")
+    for s in screens:  # force: as TVs ficam sem dashboard (exibem "nada programado")
+        s.dashboard_id = None
     audit.record(db, "dashboard.deleted", request=request, user=user, entity_type="dashboard", entity_id=d.id,
                  details={"name": d.name})
     db.delete(d)

@@ -127,8 +127,11 @@ export async function render(root) {
             title: d.display_mode === 'proxy' ? 'Abre pelo proxy do servidor (como a TV vê)' : '' }, 'Abrir'), ' ',
           session.can('admin') ? btn('Editar', () => openForm(d, load), { cls: 'sm' }) : null, ' ',
           session.can('admin') ? btn('Excluir', async () => {
-            if (!await confirmDialog('Excluir dashboard', `Excluir "${d.name}"?`, { danger: true, okLabel: 'Excluir' })) return;
-            try { await del(`/dashboards/${d.id}`); toast('Dashboard excluído', 'success'); load(); } catch (e) { toastError(e); }
+            const msg = d.screen_count
+              ? `"${d.name}" está em uso por ${d.screen_count} TV(s). Ao excluir, essas TVs ficam sem dashboard até você escolher outro. Excluir mesmo assim?`
+              : `Excluir "${d.name}"?`;
+            if (!await confirmDialog('Excluir dashboard', msg, { danger: true, okLabel: 'Excluir' })) return;
+            try { await del(`/dashboards/${d.id}${d.screen_count ? '?force=true' : ''}`); toast('Dashboard excluído', 'success'); load(); } catch (e) { toastError(e); }
           }, { cls: 'sm danger' }) : null)))))));
   }
   await load();
