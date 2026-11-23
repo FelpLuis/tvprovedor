@@ -43,6 +43,8 @@ function fields(values, isEdit) {
         help: 'Seletor CSS; vazio = detectar sozinho.' },
       { name: 'submit_selector', label: 'Botão entrar (avançado)', placeholder: 'button[type=submit]', auth: true,
         help: 'Seletor CSS; vazio = detectar sozinho.' },
+      { name: 'extra_hosts', label: 'Outros sites do login (avançado)', full: true, placeholder: 'login.exemplo.com.br, sso.fornecedor.com',
+        help: 'Via servidor: sites do mesmo domínio do dashboard (ex.: portal.updown.com.br) já são aceitos. Informe aqui só portais de login de outros domínios.' },
       { name: 'display_mode', label: 'Modo de exibição', type: 'select', options: MODES, full: true,
         help: 'Via servidor: o UpDown Digital busca a página e a mostra dentro do player, sem o bloqueio de iframe, e o login é preenchido sozinho. A TV não precisa enxergar o BI; quem acessa é o servidor.' },
       { name: 'kiosk', label: 'Modo kiosk (Grafana/Zabbix)', type: 'checkbox', default: true },
@@ -66,6 +68,9 @@ function toggleAuth(type, inputs) {
 
 function toBody(v, previous = {}) {
   const options = { ...(previous || {}) };
+  const hosts = String(v.extra_hosts || '').split(/[\s,;]+/).map((x) => x.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '')).filter(Boolean);
+  if (hosts.length) options.extra_hosts = hosts; else delete options.extra_hosts;
+  delete v.extra_hosts;
   if (v.user_selector) options.user_selector = v.user_selector; else delete options.user_selector;
   if (v.submit_selector) options.submit_selector = v.submit_selector; else delete options.submit_selector;
   delete v.user_selector; delete v.submit_selector;
@@ -82,7 +87,7 @@ function proxiedHref(d) {
 }
 
 function openForm(d, onDone) {
-  const values = d ? { ...d, ...d.options, kiosk: d.options.kiosk !== false } : { kind: 'updown_bi', auth_type: 'none', display_mode: 'proxy' };
+  const values = d ? { ...d, ...d.options, extra_hosts: (d.options.extra_hosts || []).join(', '), kiosk: d.options.kiosk !== false } : { kind: 'updown_bi', auth_type: 'none', display_mode: 'proxy' };
   const f = fields(values, !!d);
   const m = formModal({
     title: d ? `Editar ${d.name}` : 'Novo dashboard', wide: true, fields: f.list, values, extra: f.guide,

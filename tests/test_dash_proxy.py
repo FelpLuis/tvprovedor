@@ -87,3 +87,51 @@ def test_admin_can_preview_and_fallback_redirect(client, admin, mock_upstream):
     r = admin.get("/inexistente/rota?a=1", headers={"Referer": f"http://testserver/dash/{d['id']}/painel"},
                   follow_redirects=False)
     assert r.status_code == 307 and r.headers["location"] == f"/dash/{d['id']}/inexistente/rota?a=1"
+
+
+def sso_upstream(request: httpx.Request) -> httpx.Response:
+    host, path = request.url.host, request.url.path
+    logged = "sso=ok" in request.headers.get("cookie", "")
+    if host == "monitoramento.updown.com.br" and path == "/tv-isp":
+        if not logged:
+            return httpx.Response(302, headers={"Location": "https://portal.updown.com.br/login?sistema=tv-isp"
+                                                            "&volta=https://monitoramento.updown.com.br:9443/tv-isp"})
+        return httpx.Response(200, html="<html><head></head><body>Painel TV ISP</body></html>")
+    if host == "portal.updown.com.br" and path == "/login" and request.method == "GET":
+        return httpx.Response(200, html='<html><head></head><body><form method="post" action="/login">'
+                                        '<input name="u"><input type="password" name="p"></form>'
+                                        '<a href="https://monitoramento.updown.com.br:9443/tv-isp">voltar</a></body></html>',
+                              headers={"X-Frame-Options": "DENY"})
+    if host == "portal.updown.com.br" and path == "/login" and request.method == "POST":
+        volta = request.url.params.get("volta")
+        return httpx.Response(302, headers=[("Location", volta),
+                                            ("Set-Cookie", "sso=ok; Domain=.updown.com.br; Path=/; Secure; HttpOnly")])
+    return httpx.Response(404)
+
+
+def test_proxy_follows_sso_across_company_sites(client, admin):
+    dash_proxy.set_client(httpx.AsyncClient(transport=httpx.MockTransport(sso_upstream), follow_redirects=False))
+    try:
+        d = admin.post("/api/dashboards", json={"name": "TV ISP", "kind": "updown_bi", "display_mode": "proxy",
+                                                "url": "https://monitoramento.updown.com.br:9443/tv-isp"}).json()
+        p = f"/dash/{d['id']}"
+        r = admin.get(f"{p}/tv-isp", follow_redirects=False)
+        portal = (f"{p}/~/https/portal.updown.com.br/login?sistema=tv-isp"
+                  "&volta=https://monitoramento.updown.com.br:9443/tv-isp")
+        assert r.status_code == 302 and r.headers["location"] == portal  # portal passa pelo proxy (não é bloqueado)
+
+        page = admin.get(portal)
+        assert page.status_code == 200 and page.headers["x-frame-options"] == "SAMEORIGIN"
+        assert f'action="{p}/~/https/portal.updown.com.br/login"' in page.text      # "/login" do portal
+        assert f'href="{p}/tv-isp"' in page.text                                    # link absoluto do monitoramento
+
+        r = admin.post(portal, data={"u": "tv", "p": "x"}, follow_redirects=False)
+        assert r.status_code == 302 and r.headers["location"] == f"{p}/tv-isp"     # volta para o dashboard
+        assert "Domain" not in r.headers["set-cookie"] and f"Path={p}/" in r.headers["set-cookie"]
+        admin.c.cookies.set("sso", "ok", path=f"{p}/")
+        assert "Painel TV ISP" in admin.get(f"{p}/tv-isp").text                     # cookie SSO vale para os 2 sites
+
+        # sites fora do domínio da empresa não passam pelo proxy
+        assert admin.get(f"{p}/~/https/evil.example.com/x").status_code == 403
+    finally:
+        dash_proxy.set_client(None)

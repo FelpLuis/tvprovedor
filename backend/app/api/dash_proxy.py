@@ -12,6 +12,7 @@ Acesso: TVs ativadas (cookie de sessão assinado, emitido pela API do player) ou
 no painel. O destino é sempre a origem cadastrada no dashboard (nunca uma URL arbitrária).
 """
 import hashlib
+import json
 import hmac
 import re
 import time
@@ -109,17 +110,87 @@ def player_session(dash_id: int, response: Response, screen: Screen = Depends(ge
     return {"url": proxied_url(d, build_dashboard_url(d))}
 
 
+# ---------------------------------------------------------------- sites permitidos (SSO)
+
+_TWO_LEVEL = {"com", "net", "org", "gov", "edu", "art", "eng", "ind", "inf", "app", "dev", "tec"}
+
+
+def _base_domain(host: str) -> str:
+    """Domínio da empresa: updown.com.br para monitoramento.updown.com.br."""
+    labels = host.lower().split(".")
+    if len(labels) >= 3 and len(labels[-1]) == 2 and labels[-2] in _TWO_LEVEL:
+        return ".".join(labels[-3:])
+    return ".".join(labels[-2:]) if len(labels) >= 2 else host.lower()
+
+
+def _is_ip(host: str) -> bool:
+    return bool(re.fullmatch(r"[\d.]+|\[[0-9a-f:]+\]", host))
+
+
+class Site:
+    """Mapeia URLs dos sites do dashboard (o principal e os de login/SSO) para o proxy."""
+
+    def __init__(self, d: Dashboard):
+        self.d = d
+        base = urlsplit(d.url)
+        self.scheme = base.scheme
+        self.netloc = base.netloc.lower()
+        self.origin = f"{self.scheme}://{self.netloc}"
+        self.prefix = f"/dash/{d.id}"
+        host = base.hostname or ""
+        self.domain = None if _is_ip(host) else _base_domain(host)
+        self.extra = {h.strip().lower() for h in ((d.options or {}).get("extra_hosts") or []) if isinstance(h, str)}
+
+    def allowed(self, netloc: str) -> bool:
+        netloc = netloc.lower()
+        host = netloc.rsplit(":", 1)[0] if not netloc.startswith("[") else netloc
+        if netloc == self.netloc or netloc in self.extra or host in self.extra:
+            return True
+        return bool(self.domain) and (host == self.domain or host.endswith("." + self.domain))
+
+    def base_for(self, scheme: str, netloc: str) -> str:
+        """Prefixo no proxy para uma origem: /dash/{id} (principal) ou /dash/{id}/~/{scheme}/{host}."""
+        if scheme == self.scheme and netloc.lower() == self.netloc:
+            return self.prefix
+        return f"{self.prefix}/~/{scheme}/{netloc.lower()}"
+
+    def to_proxy(self, url: str) -> Optional[str]:
+        """URL absoluta de um site permitido -> caminho no proxy (ou None)."""
+        parts = urlsplit(url)
+        if parts.scheme not in ("http", "https") or not parts.netloc or not self.allowed(parts.netloc):
+            return None
+        out = self.base_for(parts.scheme, parts.netloc) + (parts.path or "/")
+        return out + (f"?{parts.query}" if parts.query else "")
+
+    def upstream(self, path: str) -> Optional[str]:
+        """Caminho após /dash/{id}/ -> URL de destino (None se o site não for permitido)."""
+        if path.startswith("~/"):
+            pieces = path.split("/", 3)
+            if len(pieces) < 3 or pieces[1] not in ("http", "https") or not self.allowed(pieces[2]):
+                return None
+            rest = pieces[3] if len(pieces) > 3 else ""
+            return f"{pieces[1]}://{pieces[2]}/{rest}"
+        return f"{self.origin}/{path}"
+
+    def page_base(self, path: str) -> str:
+        """Prefixo da página atual (para links que começam com /)."""
+        if path.startswith("~/"):
+            pieces = path.split("/", 3)
+            if len(pieces) >= 3:
+                return f"{self.prefix}/~/{pieces[1]}/{pieces[2]}"
+        return self.prefix
+
+
 # ---------------------------------------------------------------- reescritas
 
-def _rewrite_location(loc: str, origin: str, prefix: str) -> str:
-    if loc.startswith(origin):
-        return prefix + (loc[len(origin):] or "/")
+def _rewrite_location(loc: str, site: Site, base: str) -> str:
     if loc.startswith("/") and not loc.startswith("//"):
-        return prefix + loc
-    return loc
+        return base + loc
+    return site.to_proxy(loc) or loc
 
 
 def _rewrite_cookie(raw: str, prefix: str) -> str:
+    """Cookies de todos os sites do dashboard ficam sob /dash/{id}/ (como um domínio compartilhado)."""
     parts = [p.strip() for p in raw.split(";")]
     keep = [parts[0]]
     for p in parts[1:]:
@@ -131,20 +202,24 @@ def _rewrite_cookie(raw: str, prefix: str) -> str:
     return "; ".join(keep)
 
 
-_ATTR = re.compile(r'''(\s(?:href|src|action|poster|data-src)\s*=\s*)(["'])/(?!/)''', re.I)
-_CSS_URL = re.compile(r'''url\(\s*(["']?)/(?!/)''', re.I)
+_ATTR = re.compile(r"""(\s(?:href|src|action|poster|data-src)\s*=\s*)(["'])/(?!/)""", re.I)
+_ATTR_ABS = re.compile(r"""(\s(?:href|src|action|poster|data-src)\s*=\s*)(["'])(https?://[^"'\s>]+)""", re.I)
+_META_REFRESH = re.compile(r"""(<meta[^>]+http-equiv\s*=\s*["']?refresh["']?[^>]*content\s*=\s*["'][^"']*?url=)([^"'>]+)""", re.I)
+_CSS_URL = re.compile(r"""url\(\s*(["']?)/(?!/)""", re.I)
 
 
-def _rewrite_html(html: str, prefix: str, dash_id: int) -> str:
-    html = _ATTR.sub(lambda m: f"{m.group(1)}{m.group(2)}{prefix}/", html)
-    html = _CSS_URL.sub(lambda m: f"url({m.group(1)}{prefix}/", html)
-    shim = f'<script src="{prefix}/__uds_shim.js"></script>'
+def _rewrite_html(html: str, site: Site, base: str) -> str:
+    html = _ATTR.sub(lambda m: f"{m.group(1)}{m.group(2)}{base}/", html)
+    html = _ATTR_ABS.sub(lambda m: f"{m.group(1)}{m.group(2)}{site.to_proxy(m.group(3)) or m.group(3)}", html)
+    html = _META_REFRESH.sub(lambda m: m.group(1) + _rewrite_location(m.group(2).strip(), site, base), html)
+    html = _CSS_URL.sub(lambda m: f"url({m.group(1)}{base}/", html)
+    shim = f'<script src="{site.prefix}/__uds_shim.js"></script>'
     m = re.search(r"<head[^>]*>", html, re.I)
     return html[:m.end()] + shim + html[m.end():] if m else shim + html
 
 
-def _rewrite_css(css: str, prefix: str) -> str:
-    return _CSS_URL.sub(lambda m: f"url({m.group(1)}{prefix}/", css)
+def _rewrite_css(css: str, base: str) -> str:
+    return _CSS_URL.sub(lambda m: f"url({m.group(1)}{base}/", css)
 
 
 SHIM_JS = """(function(){
@@ -161,24 +236,45 @@ SHIM_JS = """(function(){
 })();"""
 
 SW_JS = """'use strict';
-// redireciona para o proxy as requisições que a página do dashboard faz para caminhos absolutos
-var PREFIX = '%(prefix)s';
+// leva para o proxy as requisições que a página do dashboard faz para caminhos absolutos ("/api/...")
+// e para os outros sites permitidos (ex.: portal de login)
+var PREFIX = %(prefix)s;
+var MAIN = %(main)s;
+var DOMAIN = %(domain)s;
+var EXTRA = %(extra)s;
+function allowed(u) {
+  var host = u.hostname.toLowerCase();
+  return u.origin === MAIN || EXTRA.indexOf(u.host.toLowerCase()) >= 0 || EXTRA.indexOf(host) >= 0 ||
+    (DOMAIN && (host === DOMAIN || host.slice(-DOMAIN.length - 1) === '.' + DOMAIN));
+}
+function proxied(u) {
+  if (u.origin === MAIN) return PREFIX + u.pathname + u.search;
+  return PREFIX + '/~/' + u.protocol.replace(':', '') + '/' + u.host.toLowerCase() + u.pathname + u.search;
+}
+function basePath(clientUrl) {
+  var m = /^(\\/dash\\/\\d+(?:\\/~\\/https?\\/[^\\/]+)?)/.exec(clientUrl ? new URL(clientUrl).pathname : '');
+  return m ? m[1] : PREFIX;
+}
 self.addEventListener('install', function () { self.skipWaiting(); });
 self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
 self.addEventListener('fetch', function (event) {
   var req = event.request;
   var url = new URL(req.url);
-  if (url.origin !== self.location.origin || url.pathname.indexOf(PREFIX + '/') === 0) return;
-  if (req.mode === 'navigate') {
-    event.respondWith(Response.redirect(PREFIX + url.pathname + url.search, 302));
-    return;
-  }
-  event.respondWith((req.method === 'GET' || req.method === 'HEAD' ? Promise.resolve(undefined) : req.clone().arrayBuffer())
-    .then(function (body) {
-      return fetch(PREFIX + url.pathname + url.search, {
-        method: req.method, headers: req.headers, body: body, credentials: 'include', redirect: 'manual'
-      });
-    }));
+  var sameOrigin = url.origin === self.location.origin;
+  if (sameOrigin && url.pathname.indexOf(PREFIX + '/') === 0) return;
+  if (!sameOrigin && !allowed(url)) return;
+  event.respondWith((async function () {
+    var target;
+    if (sameOrigin) {
+      var client = event.clientId ? await self.clients.get(event.clientId) : null;
+      target = basePath(client && client.url) + url.pathname + url.search;
+    } else {
+      target = proxied(url);
+    }
+    if (req.mode === 'navigate') return Response.redirect(target, 302);
+    var body = (req.method === 'GET' || req.method === 'HEAD') ? undefined : await req.clone().arrayBuffer();
+    return fetch(target, { method: req.method, headers: req.headers, body: body, credentials: 'include', redirect: 'manual' });
+  })());
 });
 """
 
@@ -193,17 +289,24 @@ async def proxy(dash_id: int, path: str, request: Request, db: Session = Depends
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Dashboard não encontrado")
     if not _authorized(request, db, dash_id):
         return HTMLResponse("<h3>Acesso não autorizado ao dashboard.</h3>", status_code=401)
-    prefix = f"/dash/{dash_id}"
+    site = Site(d)
     if path == "__uds_shim.js":
-        return Response(SHIM_JS % {"prefix": prefix}, media_type="application/javascript",
+        return Response(SHIM_JS % {"prefix": site.prefix}, media_type="application/javascript",
                         headers={"Cache-Control": "no-cache"})
     if path == "__uds_sw.js":
-        return Response(SW_JS % {"prefix": prefix}, media_type="application/javascript",
-                        headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": prefix + "/"})
+        js = SW_JS % {"prefix": json.dumps(site.prefix), "main": json.dumps(site.origin),
+                      "domain": json.dumps(site.domain), "extra": json.dumps(sorted(site.extra))}
+        return Response(js, media_type="application/javascript",
+                        headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": site.prefix + "/"})
 
-    base = urlsplit(d.url)
-    origin = f"{base.scheme}://{base.netloc}"
-    target = f"{origin}/{path}" + (f"?{request.url.query}" if request.url.query else "")
+    target = site.upstream(path)
+    if target is None:
+        return HTMLResponse("<h3>Endereço fora dos sites permitidos para este dashboard.</h3>", status_code=403)
+    if request.url.query:
+        target += f"?{request.url.query}"
+    tparts = urlsplit(target)
+    t_origin = f"{tparts.scheme}://{tparts.netloc}"
+    base = site.page_base(path)
 
     headers = {}
     for k, v in request.headers.items():
@@ -211,16 +314,18 @@ async def proxy(dash_id: int, path: str, request: Request, db: Session = Depends
         if lk in HOP_HEADERS or lk.startswith("x-forwarded") or lk in ("cookie", "origin", "referer"):
             continue
         headers[k] = v
-    # cookies do próprio dashboard (os do UpDown Digital ficam no servidor)
+    # cookies dos sites do dashboard (os do UpDown Digital ficam no servidor)
     upstream_cookies = "; ".join(f"{k}={v}" for k, v in request.cookies.items()
                                  if not k.startswith(COOKIE_PREFIX) and k != get_settings().cookie_name)
     if upstream_cookies:
         headers["Cookie"] = upstream_cookies
     if request.headers.get("origin"):
-        headers["Origin"] = origin
-    ref = request.headers.get("referer", "")
-    if prefix in ref:
-        headers["Referer"] = origin + ref.split(prefix, 1)[1]
+        headers["Origin"] = t_origin
+    m = re.search(r"/dash/\d+/(.*)$", request.headers.get("referer", ""))
+    if m:
+        ref_target = site.upstream(m.group(1))
+        if ref_target:
+            headers["Referer"] = ref_target
     headers["Accept-Encoding"] = "identity"
 
     body = await request.body()
@@ -233,28 +338,27 @@ async def proxy(dash_id: int, path: str, request: Request, db: Session = Depends
     ctype = up.headers.get("content-type", "")
     if "text/html" in ctype:
         enc = up.encoding or "utf-8"
-        content = _rewrite_html(content.decode(enc, errors="replace"), prefix, dash_id).encode(enc, errors="replace")
+        content = _rewrite_html(content.decode(enc, errors="replace"), site, base).encode(enc, errors="replace")
     elif "text/css" in ctype:
         enc = up.encoding or "utf-8"
-        content = _rewrite_css(content.decode(enc, errors="replace"), prefix).encode(enc, errors="replace")
+        content = _rewrite_css(content.decode(enc, errors="replace"), base).encode(enc, errors="replace")
 
     resp = Response(content=content, status_code=up.status_code)
     for k, v in up.headers.multi_items():
         if k.lower() not in DROP_RESPONSE:
             resp.headers.append(k, v)
     if "location" in up.headers:
-        resp.headers["Location"] = _rewrite_location(up.headers["location"], origin, prefix)
+        resp.headers["Location"] = _rewrite_location(up.headers["location"], site, base)
     for raw in up.headers.get_list("set-cookie"):
-        resp.headers.append("Set-Cookie", _rewrite_cookie(raw, prefix))
+        resp.headers.append("Set-Cookie", _rewrite_cookie(raw, site.prefix))
     resp.headers["X-Frame-Options"] = "SAMEORIGIN"
     return resp
 
 
 def referer_dash_prefix(request: Request) -> Optional[str]:
-    """Se a requisição veio de uma página do proxy, devolve /dash/{id} (para corrigir links absolutos)."""
-    ref = request.headers.get("referer", "")
-    m = re.search(r"/dash/(\d+)/", ref)
-    return f"/dash/{m.group(1)}" if m else None
+    """Se a requisição veio de uma página do proxy, devolve o prefixo dela (para corrigir links absolutos)."""
+    m = re.search(r"(/dash/\d+(?:/~/https?/[^/?#]+)?)/", request.headers.get("referer", ""))
+    return m.group(1) if m else None
 
 
 def fallback_redirect(request: Request) -> Optional[RedirectResponse]:
