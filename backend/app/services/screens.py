@@ -199,11 +199,16 @@ def player_config(screen: Screen) -> Dict[str, Any]:
         d = screen.dashboard
         if d is not None and d.is_active:
             cfg["mode"] = "dashboard"
+            url = build_dashboard_url(d)
+            if d.display_mode == "proxy":
+                from app.api.dash_proxy import proxied_url
+
+                url = proxied_url(d, url)
             cfg["dashboard"] = {
                 "id": d.id,
                 "name": d.name,
                 "kind": d.kind,
-                "url": build_dashboard_url(d),
+                "url": url,
                 "refresh_seconds": screen.refresh_seconds or d.refresh_seconds,
                 "display_mode": d.display_mode,
                 "auth_type": d.auth_type,

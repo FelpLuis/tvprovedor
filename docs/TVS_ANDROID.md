@@ -292,6 +292,24 @@ Conversão sugerida com ffmpeg (no computador de quem produz o conteúdo):
 ffmpeg -i entrada.mov -c:v libx264 -profile:v high -level 4.1 -pix_fmt yuv420p -vf "scale=1920:-2" -c:a aac -b:a 128k -movflags +faststart saida.mp4
 ```
 
+## Dashboards dentro do player, via servidor (recomendado para o UpDown BI)
+
+No cadastro do dashboard, **Modo de exibição → Dentro do player, via servidor**:
+
+- o servidor UpDown Digital busca a página do BI e a entrega ao player pelo próprio endereço
+  (`tv.updown.com.br/dash/…`), **sem o bloqueio de iframe**; a página aparece dentro do player, no
+  app ou no navegador;
+- com **Autenticação → Login e senha**, o player preenche a tela de login dentro do iframe e entra
+  sozinho; a sessão fica guardada na TV;
+- **quem acessa o BI é o servidor**: a TV não precisa enxergar o BI (pode estar em `http://` numa
+  rede que só o servidor alcança). O servidor precisa conseguir abrir a URL do BI;
+- o acesso ao `/dash/…` é protegido: só TVs ativadas com aquele dashboard ou usuários logados no
+  painel (o botão **Abrir** da lista mostra exatamente o que a TV vê).
+
+Limitações: atualizações em tempo real por WebSocket não passam pelo proxy (a página continua
+recarregando no intervalo configurado). Sistemas que verificam o domínio de forma rígida podem
+precisar do modo "Dentro do player, direto" ou do app.
+
 ## Dashboards com login (UpDown BI, Grafana, Zabbix…)
 
 No **app UpDown Digital**, os dashboards abrem num navegador próprio em tela cheia (não em iframe):

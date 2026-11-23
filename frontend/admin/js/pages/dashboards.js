@@ -9,7 +9,11 @@ const AUTH = [
   ['public_embed', 'Link de incorporação oficial'],
   ['browser_session', 'Sessão já autenticada no navegador da TV'],
 ];
-const MODES = [['iframe', 'Dentro do player (recomendado)'], ['redirect', 'Abrir página diretamente (sites que bloqueiam iframe)']];
+const MODES = [
+  ['proxy', 'Dentro do player, via servidor (recomendado: UpDown BI, páginas com login ou que bloqueiam iframe)'],
+  ['iframe', 'Dentro do player, direto (páginas públicas que permitem iframe)'],
+  ['redirect', 'Abrir página diretamente (perde o controle do player)'],
+];
 
 const GUIDE = {
   grafana: 'Grafana: use a URL do dashboard (/d/...). O modo kiosk é adicionado automaticamente. Para exibir sem login, use um usuário Viewer dedicado, snapshot público ou "public dashboards". Pode ser necessário habilitar allow_embedding=true no grafana.ini.',
@@ -40,7 +44,7 @@ function fields(values, isEdit) {
       { name: 'submit_selector', label: 'Botão entrar (avançado)', placeholder: 'button[type=submit]', auth: true,
         help: 'Seletor CSS; vazio = detectar sozinho.' },
       { name: 'display_mode', label: 'Modo de exibição', type: 'select', options: MODES, full: true,
-        help: 'No modo direto, o player perde o controle da TV (sem heartbeat) até voltar para /player.' },
+        help: 'Via servidor: o UpDown Digital busca a página e a mostra dentro do player, sem o bloqueio de iframe, e o login é preenchido sozinho. A TV não precisa enxergar o BI; quem acessa é o servidor.' },
       { name: 'kiosk', label: 'Modo kiosk (Grafana/Zabbix)', type: 'checkbox', default: true },
       { name: 'theme', label: 'Tema (Grafana)', type: 'select', options: [['', 'Padrão'], ['dark', 'Escuro'], ['light', 'Claro']] },
       { name: 'load_timeout_seconds', label: 'Tempo limite de carregamento (s)', type: 'number', min: 10, default: 60 },
@@ -73,8 +77,12 @@ function toBody(v, previous = {}) {
   return { ...rest, refresh_seconds: v.refresh_seconds || 0, options };
 }
 
+function proxiedHref(d) {
+  try { const u = new URL(d.url, location.origin); return `/dash/${d.id}${u.pathname}${u.search}`; } catch { return d.url; }
+}
+
 function openForm(d, onDone) {
-  const values = d ? { ...d, ...d.options, kiosk: d.options.kiosk !== false } : { kind: 'grafana', auth_type: 'none', display_mode: 'iframe' };
+  const values = d ? { ...d, ...d.options, kiosk: d.options.kiosk !== false } : { kind: 'updown_bi', auth_type: 'none', display_mode: 'proxy' };
   const f = fields(values, !!d);
   const m = formModal({
     title: d ? `Editar ${d.name}` : 'Novo dashboard', wide: true, fields: f.list, values, extra: f.guide,
@@ -110,7 +118,8 @@ export async function render(root) {
         h('td', null, String(d.screen_count)),
         h('td', null, h('span', { class: `badge ${d.is_active ? 'success' : ''}` }, d.is_active ? 'Ativo' : 'Inativo')),
         h('td', { class: 'nowrap', style: 'text-align:right' },
-          h('a', { class: 'btn sm', href: d.url, target: '_blank', rel: 'noopener noreferrer' }, 'Abrir'), ' ',
+          h('a', { class: 'btn sm', href: d.display_mode === 'proxy' ? proxiedHref(d) : d.url, target: '_blank', rel: 'noopener noreferrer',
+            title: d.display_mode === 'proxy' ? 'Abre pelo proxy do servidor (como a TV vê)' : '' }, 'Abrir'), ' ',
           session.can('admin') ? btn('Editar', () => openForm(d, load), { cls: 'sm' }) : null, ' ',
           session.can('admin') ? btn('Excluir', async () => {
             if (!await confirmDialog('Excluir dashboard', `Excluir "${d.name}"?`, { danger: true, okLabel: 'Excluir' })) return;

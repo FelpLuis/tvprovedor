@@ -71,6 +71,7 @@ class DashboardAuthType(str, Enum):
 class DashboardDisplayMode(str, Enum):
     IFRAME = "iframe"      # player mantém controle (heartbeat, watchdog)
     REDIRECT = "redirect"  # para sites que bloqueiam iframe (X-Frame-Options)
+    PROXY = "proxy"        # dentro do player, via servidor (remove bloqueio de iframe; login automático)
 
 
 class MediaKind(str, Enum):

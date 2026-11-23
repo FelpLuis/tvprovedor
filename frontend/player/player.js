@@ -591,6 +591,7 @@
 
   var dashboard = new DashboardPlayer($('dashboard'), {
     isOnline: function () { return state.online; },
+    onLoad: function (frame, dcfg) { autoLogin(frame, dcfg, 0, 0); },
     onState: function (s, detail) {
       if (s === 'playing') {
         state.playbackState = 'playing';
@@ -606,6 +607,82 @@
     }
   });
   var fullReloadTimer = null;
+
+  // ---------------------------------------------------------------- dashboards via proxy
+
+  function isProxied(d) { return d && typeof d.url === 'string' && d.url.indexOf('/dash/') === 0; }
+
+  /** Pede ao servidor o acesso (cookie) ao proxy deste dashboard e então abre no iframe. */
+  function startProxiedDashboard(d) {
+    fetch(API + '/dashboards/' + d.id + '/session', {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: { Authorization: 'Bearer ' + state.token, Accept: 'application/json' }
+    }).then(function (r) {
+      if (!r.ok) { throw new HttpError(r.status, null); }
+      return r.json();
+    }).then(function (res) {
+      var copy = {};
+      for (var k in d) { if (d.hasOwnProperty(k)) { copy[k] = d[k]; } }
+      copy.url = res.url;
+      dashboard.start(copy);
+    }).catch(function (err) {
+      setError('Dashboard: sem acesso ao proxy (' + (err && err.message) + ')');
+      setTimeout(function () { if (state.config && state.config.dashboard && state.config.dashboard.id === d.id) { startProxiedDashboard(d); } }, 15000);
+    });
+  }
+
+  /**
+   * Login automático dentro do iframe (mesma origem graças ao proxy): acha o campo de senha
+   * visível, o de usuário antes dele, preenche disparando os eventos que frameworks (React/Angular)
+   * esperam e envia. Repete enquanto a tela de login estiver aparecendo (máx. 3 envios).
+   */
+  function autoLogin(frame, dcfg, tries, submits) {
+    var a = dcfg && dcfg.auth;
+    if (!a || a.type !== 'login_form' || !frame.parentNode) { return; }
+    var doc, win;
+    try { doc = frame.contentDocument; win = frame.contentWindow; } catch (e) { return; }
+    if (!doc || !win) { return; }
+    var vis = function (e) { if (!e) { return false; } var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+    var q = function (s) { try { return s ? doc.querySelector(s) : null; } catch (e) { return null; } };
+    var all = [].slice.call(doc.querySelectorAll('input'));
+    var pass = q(a.pass_selector) || all.filter(function (i) { return i.type === 'password' && vis(i); })[0];
+    if (!pass) {
+      if (submits > 0) { state.currentContent = dcfg.name; return; }  // entrou
+      if (tries < 8) { setTimeout(function () { autoLogin(frame, dcfg, tries + 1, submits); }, 1500); }
+      return;
+    }
+    if (submits >= 3) { setError('Dashboard: falha no login (a página continua pedindo usuário/senha)'); return; }
+    var user = q(a.user_selector);
+    if (!user) {
+      for (var i = all.indexOf(pass) - 1; i >= 0; i--) {
+        var t = (all[i].type || 'text').toLowerCase();
+        if (['text', 'email', 'tel', 'number', ''].indexOf(t) >= 0 && vis(all[i])) { user = all[i]; break; }
+      }
+    }
+    var setv = function (el, v) {
+      var d = Object.getOwnPropertyDescriptor(win.HTMLInputElement.prototype, 'value');
+      el.focus();
+      if (d && d.set) { d.set.call(el, v); } else { el.value = v; }
+      el.dispatchEvent(new win.Event('input', { bubbles: true }));
+      el.dispatchEvent(new win.Event('change', { bubbles: true }));
+      el.blur();
+    };
+    if (user) { setv(user, a.username); }
+    setv(pass, a.password);
+    var btn = q(a.submit_selector);
+    if (!btn && pass.form) { btn = pass.form.querySelector('button[type=submit],input[type=submit]') || pass.form.querySelector('button'); }
+    if (!btn) {
+      btn = [].slice.call(doc.querySelectorAll('button,input[type=submit],a')).filter(function (b) {
+        return vis(b) && /entrar|login|log in|sign in|acessar|continuar|ok/i.test(b.textContent || b.value || '');
+      })[0];
+    }
+    setTimeout(function () {
+      if (btn) { btn.click(); } else if (pass.form) { if (pass.form.requestSubmit) { pass.form.requestSubmit(); } else { pass.form.submit(); } }
+      state.currentContent = dcfg.name + ' (entrando…)';
+      // telas que não recarregam após o login: confere de novo
+      setTimeout(function () { autoLogin(frame, dcfg, 0, submits + 1); }, 4000);
+    }, 400);
+  }
 
   // ---------------------------------------------------------------- CFTV (câmeras)
 
@@ -663,6 +740,14 @@
     if (cfg.mode === 'media') {
       startMedia(cfg.playlist);
       MediaCache.releaseUnused(playlistShas(cfg));
+    } else if (cfg.mode === 'dashboard' && isProxied(cfg.dashboard)) {
+      // dentro da página do player, via servidor (proxy): iframe na mesma origem + login automático
+      show('dashboard');
+      state.playbackState = 'loading';
+      state.currentContent = cfg.dashboard.name;
+      startProxiedDashboard(cfg.dashboard);
+      var hoursP = cfg.dashboard.full_reload_hours || 12;
+      fullReloadTimer = setTimeout(function () { if (state.online) { location.reload(); } }, hoursP * 3600 * 1000);
     } else if (cfg.mode === 'dashboard' && NATIVE && typeof NATIVE.showDashboard === 'function') {
       // app: navegador próprio em tela cheia (sem iframe), com login automático
       var dd = displaySettings();
