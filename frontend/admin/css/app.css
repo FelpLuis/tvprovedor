@@ -108,12 +108,35 @@ svg.icon { width: 18px; height: 18px; flex: none; }
 .topbar .user { display: flex; align-items: center; gap: 8px; color: var(--text-muted); }
 .content { padding: 24px; max-width: 1400px; }
 .page-head { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-.menu-btn { display: none; }
+/* menu lateral: recolhido (computador) e gaveta (telas pequenas) */
+.sidebar, .main { transition: width .25s var(--ease, ease), margin-left .25s var(--ease, ease), transform .25s var(--ease, ease); }
+.sidebar { overflow-x: hidden; }
+.nav a { white-space: nowrap; }
+.nav a .nav-label, .sidebar .foot-text { transition: opacity .2s; }
+.nav-scrim { display: none; }
+.layout.nav-collapsed { --sidebar: 72px; }
+.layout.nav-collapsed .nav a { justify-content: center; padding: 10px 0; gap: 0; }
+.layout.nav-collapsed .nav a .nav-label, .layout.nav-collapsed .sidebar .foot-text { opacity: 0; width: 0; overflow: hidden; }
+.layout.nav-collapsed .sidebar .brand { padding: 18px 0 12px; align-items: center; }
+.brand-icon { display: none; width: 36px; height: 36px; border-radius: 10px; }
+.layout.nav-collapsed .sidebar .brand-logo { display: none; }
+.layout.nav-collapsed .sidebar .brand-icon { display: block; }
+.layout.nav-collapsed .sidebar .brand .tag { display: none; }
+.layout.nav-collapsed .sidebar .foot { padding: 12px 0; }
 @media (max-width: 900px) {
-  .sidebar { transform: translateX(-100%); box-shadow: var(--shadow); }
-  .sidebar.open { transform: none; }
+  .layout, .layout.nav-collapsed { --sidebar: 236px; }
+  .layout.nav-collapsed .nav a { justify-content: flex-start; padding: 9px 12px; gap: 10px; }
+  .layout.nav-collapsed .nav a .nav-label, .layout.nav-collapsed .sidebar .foot-text { opacity: 1; width: auto; }
+  .layout.nav-collapsed .sidebar .brand { padding: 22px 20px 16px; align-items: flex-start; }
+  .layout.nav-collapsed .sidebar .brand-icon { display: none; }
+  .layout.nav-collapsed .sidebar .brand .tag { display: block; }
+  .layout.nav-collapsed .sidebar .brand-logo.on-dark { display: block; }
+  :root[data-theme="light"] .layout.nav-collapsed .sidebar .brand-logo.on-dark { display: none; }
+  :root[data-theme="light"] .layout.nav-collapsed .sidebar .brand-logo.on-light { display: block; }
+  .sidebar { transform: translateX(-100%); box-shadow: var(--shadow); z-index: 40; }
+  .layout.nav-open .sidebar { transform: none; }
+  .layout.nav-open .nav-scrim { display: block; position: fixed; inset: 0; z-index: 30; background: rgba(5, 0, 30, .55); backdrop-filter: blur(2px); animation: fade-in .2s ease; }
   .main { margin-left: 0; }
-  .menu-btn { display: inline-flex; }
   .content { padding: 16px; }
   .topbar { padding: 0 16px; }
 }
