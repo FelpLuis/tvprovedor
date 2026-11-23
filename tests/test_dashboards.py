@@ -47,3 +47,37 @@ def test_dashboard_rejects_protocol_relative_url(admin):
     for url in ("//evil.example.com/x", "/\\evil.example.com", "/bi/ok\nX-Injected: 1"):
         assert admin.post("/api/dashboards", json={"name": "X", "kind": "other", "url": url}).status_code == 422
     assert admin.post("/api/dashboards", json={"name": "Interno", "kind": "updown_bi", "url": "/bi/comercial"}).status_code == 201
+
+
+def test_dashboard_login_credentials(client, admin):
+    from app import database
+    from app.models import Dashboard
+
+    r = admin.post("/api/dashboards", json={
+        "name": "UpDown BI Comercial", "kind": "updown_bi", "url": "http://10.0.0.20:8080/painel/comercial",
+        "auth_type": "login_form", "username": "tv.comercial", "password": "Bi#2026!", "login_url": "http://10.0.0.20:8080/login",
+        "options": {"user_selector": "#email"}})
+    assert r.status_code == 201, r.text
+    d = r.json()
+    assert d["has_password"] is True and d["username"] == "tv.comercial" and "Bi#2026" not in r.text
+    with database.SessionLocal() as db:
+        assert "Bi#2026" not in (db.get(Dashboard, d["id"]).password_encrypted or "")
+
+    token, screen = activate_device(admin, client, profile="UPDOWN_BI_PLAYER", dashboard_id=d["id"])
+    auth = client.get("/api/player/config", headers=dev(token)).json()["dashboard"]["auth"]
+    assert auth == {"type": "login_form", "username": "tv.comercial", "password": "Bi#2026!",
+                    "login_url": "http://10.0.0.20:8080/login", "user_selector": "#email",
+                    "pass_selector": "", "submit_selector": ""}
+
+    # editar sem senha mantém; "" remove; auditoria sem a senha
+    assert admin.patch(f"/api/dashboards/{d['id']}", json={"refresh_seconds": 60}).json()["has_password"] is True
+    assert admin.patch(f"/api/dashboards/{d['id']}", json={"password": "Nova#1"}).json()["has_password"] is True
+    assert client.get("/api/player/config", headers=dev(token)).json()["dashboard"]["auth"]["password"] == "Nova#1"
+    assert "Nova#1" not in str(admin.get("/api/audit-logs?entity_type=dashboard").json())
+    assert admin.patch(f"/api/dashboards/{d['id']}", json={"password": ""}).json()["has_password"] is False
+
+    # sem tipo de login, nada de credenciais na configuração
+    admin.patch(f"/api/dashboards/{d['id']}", json={"auth_type": "none"})
+    assert client.get("/api/player/config", headers=dev(token)).json()["dashboard"]["auth"] is None
+    assert admin.post("/api/dashboards", json={"name": "X", "kind": "other", "url": "https://x",
+                                               "login_url": "javascript:alert(1)"}).status_code == 422

@@ -116,6 +116,24 @@ def _playlist_payload(pl: Playlist) -> Dict[str, Any]:
     }
 
 
+def dashboard_auth(d: Dashboard) -> Optional[Dict[str, Any]]:
+    """Credenciais para o app entrar sozinho (somente para a TV autenticada)."""
+    if d.auth_type not in ("login_form", "http_basic") or not d.username:
+        return None
+    from app.core.crypto import decrypt
+
+    opts = d.options or {}
+    return {
+        "type": d.auth_type,
+        "username": d.username,
+        "password": decrypt(d.password_encrypted) or "",
+        "login_url": d.login_url or "",
+        "user_selector": str(opts.get("user_selector") or ""),
+        "pass_selector": str(opts.get("pass_selector") or ""),
+        "submit_selector": str(opts.get("submit_selector") or ""),
+    }
+
+
 def display_payload(screen: Screen) -> Dict[str, Any]:
     """Disposição da tela: o player gira e escala um "palco" lógico conforme estes valores."""
     orientation = Orientation(screen.orientation or Orientation.LANDSCAPE.value)
@@ -192,6 +210,7 @@ def player_config(screen: Screen) -> Dict[str, Any]:
                 "load_timeout_seconds": int((d.options or {}).get("load_timeout_seconds", 60)),
                 "full_reload_hours": int((d.options or {}).get("full_reload_hours", 12)),
                 "version": d.version,
+                "auth": dashboard_auth(d),
             }
     cfg["config_hash"] = config_hash(cfg)
     return cfg

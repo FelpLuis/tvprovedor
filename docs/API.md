@@ -116,13 +116,15 @@ Para imagens, `duration_seconds` é o tempo de exibição; para vídeos, um limi
 | Método | Rota | Perfil | Descrição |
 |---|---|---|---|
 | GET | `/dashboards` | V | lista |
-| POST | `/dashboards` | A | `{name, kind, url, refresh_seconds, auth_type, display_mode, options, notes, is_active}` |
+| POST | `/dashboards` | A | `{name, kind, url, refresh_seconds, auth_type, display_mode, options, notes, is_active, username, password, login_url}` |
 | PATCH | `/dashboards/{id}` | A | parcial |
 | DELETE | `/dashboards/{id}` | A | 409 se estiver em uso |
 
 `kind`: `grafana` · `powerbi` · `zabbix` · `updown_bi` · `other`.
 `options`: `kiosk` (bool ou `"tv"`), `theme`, `query` (parâmetros extras), `load_timeout_seconds`,
-`full_reload_hours`, `hide_panes` (Power BI).
+`full_reload_hours`, `hide_panes` (Power BI), `user_selector`, `pass_selector`, `submit_selector` (login).
+`auth_type`: `none`, `public_embed`, `browser_session`, `login_form` (o app preenche o login), `http_basic`.
+A senha nunca é devolvida (`has_password`); a configuração da TV traz `dashboard.auth` com as credenciais.
 
 ## Câmeras (CFTV)
 

@@ -9,8 +9,39 @@
   <meta name="theme-color" content="#140058">
   <link rel="stylesheet" href="/css/app.css">
   <script src="/js/theme.js"></script>
+  <script src="/js/bg.js" defer></script>
 </head>
 <body>
+  <!-- Fundo animado: o "U" da marca UpDown (decorativo) -->
+  <div class="bg-scene" aria-hidden="true">
+    <div class="bg-blob blob-a"></div>
+    <div class="bg-blob blob-b"></div>
+    <div class="bg-grid"></div>
+    <svg class="bg-u bg-u-main" viewBox="0 0 400 440" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="uGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#00ceff"/>
+          <stop offset=".55" stop-color="#5b6bff"/>
+          <stop offset="1" stop-color="#9b00ff"/>
+          <animateTransform attributeName="gradientTransform" type="rotate" values="0 .5 .5;360 .5 .5" dur="18s" repeatCount="indefinite"/>
+        </linearGradient>
+        <filter id="uGlow" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="10" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <path class="u-stroke" d="M110 170 V270 A90 90 0 0 0 290 270 V170" fill="none" stroke="url(#uGrad)" stroke-width="58" stroke-linecap="round" filter="url(#uGlow)"/>
+      <g class="u-arrows" fill="none" stroke="#b46bff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+        <polyline class="arrow a1" points="86,128 110,104 134,128"/>
+        <polyline class="arrow a2" points="86,92 110,68 134,92"/>
+        <polyline class="arrow a3" points="266,128 290,104 314,128"/>
+        <polyline class="arrow a4" points="266,92 290,68 314,92"/>
+      </g>
+    </svg>
+    <svg class="bg-u bg-u-small" viewBox="0 0 400 440" xmlns="http://www.w3.org/2000/svg">
+      <path d="M110 170 V270 A90 90 0 0 0 290 270 V170" fill="none" stroke="url(#uGrad)" stroke-width="58" stroke-linecap="round"/>
+    </svg>
+  </div>
   <div id="app"></div>
   <div id="toasts" class="toasts"></div>
   <script type="module" src="/js/app.js"></script>

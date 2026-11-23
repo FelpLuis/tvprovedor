@@ -41,12 +41,15 @@ class DashboardBase(BaseModel):
     options: Dict[str, Any] = Field(default_factory=dict)
     notes: str = Field(default="", max_length=4000)
     is_active: bool = True
+    username: str = Field(default="", max_length=120)
+    login_url: str = Field(default="", max_length=4000)
 
     _url = field_validator("url")(_validate_url)
+    _login_url = field_validator("login_url")(lambda v: _validate_url(v) if v else v)
 
 
 class DashboardCreate(DashboardBase):
-    pass
+    password: Optional[str] = Field(default=None, max_length=256)
 
 
 class DashboardUpdate(BaseModel):
@@ -59,8 +62,13 @@ class DashboardUpdate(BaseModel):
     options: Optional[Dict[str, Any]] = None
     notes: Optional[str] = Field(default=None, max_length=4000)
     is_active: Optional[bool] = None
+    username: Optional[str] = Field(default=None, max_length=120)
+    # omitido = mantém; "" = remove
+    password: Optional[str] = Field(default=None, max_length=256)
+    login_url: Optional[str] = Field(default=None, max_length=4000)
 
     _url = field_validator("url")(_validate_url)
+    _login_url = field_validator("login_url")(lambda v: _validate_url(v) if v else v)
 
 
 class DashboardOut(ORMModel):
@@ -74,6 +82,9 @@ class DashboardOut(ORMModel):
     options: Dict[str, Any]
     notes: str
     is_active: bool
+    username: str
+    has_password: bool
+    login_url: str
     version: int
     screen_count: int = 0
     created_at: datetime

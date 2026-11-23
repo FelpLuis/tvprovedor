@@ -56,6 +56,7 @@ class MainActivity : Activity() {
 
     lateinit var setup: SetupAssistant
     lateinit var cameraWall: CameraWall
+    lateinit var dashboardView: DashboardView
 
     /** Verificação de atualização: 2 min após abrir e depois a cada 6 h. */
     private val updateCheck = object : Runnable {
@@ -76,6 +77,7 @@ class MainActivity : Activity() {
         DeviceOwner.applyPolicies(this)
         setup = SetupAssistant(this)
         cameraWall = CameraWall(this, container)
+        dashboardView = DashboardView(this, container)
         createWebView()
         applyFullscreen()
         handler.postDelayed(watchdog, WATCHDOG_INTERVAL_MS)
@@ -340,6 +342,7 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         cameraWall.hide()
+        dashboardView.hide()
         webView?.destroy()
         webView = null
         super.onDestroy()

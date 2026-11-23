@@ -284,6 +284,7 @@ function infoPane(s) {
     kv('Tela configurada', displayConfigured(s)),
     kv('Tela detectada', displayDetected(s.display_info)),
     kv('Atualização do app', (s.display_info || {}).silent_update),
+    s.dashboard_id ? kv('Dashboard (informado pela TV)', (s.display_info || {}).dashboard || (s.online ? 'sem informação (TV sem o app?)' : 'TV offline')) : null,
     s.profile === 'CAMERA_PLAYER' ? kv('CFTV (informado pela TV)', (s.display_info || {}).cameras || (s.online ? 'sem informação (TV sem o app?)' : 'TV offline')) : null,
     kv('Armazenamento local', st.usage !== undefined ? `${fmtBytes(st.usage)} de ${fmtBytes(st.quota)}${st.downloading ? ' · baixando ' + st.downloading : ''}` : null),
     kv('Último erro', s.last_error ? `${s.last_error} (${fmtDate(s.last_error_at)})` : null),

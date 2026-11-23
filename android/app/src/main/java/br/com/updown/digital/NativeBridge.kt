@@ -110,6 +110,21 @@ class NativeBridge(private val activity: MainActivity) {
         activity.runOnUiThread { activity.cameraWall.hide() }
     }
 
+    /** Dashboards: navegador próprio em tela cheia, com login automático. */
+    @JavascriptInterface
+    fun showDashboard(json: String) {
+        if (!trusted()) return
+        activity.runOnUiThread { activity.dashboardView.show(json) }
+    }
+
+    @JavascriptInterface
+    fun hideDashboard() {
+        activity.runOnUiThread { activity.dashboardView.hide() }
+    }
+
+    @JavascriptInterface
+    fun getDashboardStatus(): String = activity.dashboardView.status()
+
     @Volatile private var cameraStatus = ""
 
     /** Resumo do mosaico para o painel (lido pelo heartbeat). */
