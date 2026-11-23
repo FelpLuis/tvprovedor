@@ -32,8 +32,36 @@ function brandMark() {
   return h('div', { class: 'brand' },
     h('img', { class: 'brand-logo on-dark', src: '/player/brand/logo-updown.png', alt: 'UpDown Internet', width: 353, height: 96 }),
     h('img', { class: 'brand-logo on-light', src: '/player/brand/logo-updown-dark.png', alt: 'UpDown Internet', width: 353, height: 96 }),
+    h('img', { class: 'brand-icon', src: '/player/brand/favicon.png', alt: 'UpDown Digital', width: 36, height: 36 }),
     h('span', { class: 'tag' }, 'Digital'));
 }
+
+// Menu lateral: no computador recolhe/expande (lembrado no navegador);
+// em telas pequenas abre/fecha por cima do conteúdo.
+const NAV_KEY = 'uds.nav.collapsed';
+const isNarrow = () => window.matchMedia('(max-width: 900px)').matches;
+function readCollapsed() { try { return localStorage.getItem(NAV_KEY) === '1'; } catch { return false; } }
+function toggleMenu() {
+  if (!layout) return;
+  if (isNarrow()) { setMenuOpen(!layout.root.classList.contains('nav-open')); return; }
+  const collapsed = !layout.root.classList.contains('nav-collapsed');
+  layout.root.classList.toggle('nav-collapsed', collapsed);
+  try { localStorage.setItem(NAV_KEY, collapsed ? '1' : '0'); } catch { /* ignora */ }
+  syncMenuButton();
+}
+function setMenuOpen(open) {
+  if (!layout) return;
+  layout.root.classList.toggle('nav-open', open);
+  syncMenuButton();
+}
+function syncMenuButton() {
+  if (!layout) return;
+  const expanded = isNarrow() ? layout.root.classList.contains('nav-open') : !layout.root.classList.contains('nav-collapsed');
+  layout.menuBtn.setAttribute('aria-expanded', String(expanded));
+  layout.menuBtn.title = expanded ? 'Recolher menu' : 'Expandir menu';
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && layout?.root.classList.contains('nav-open')) setMenuOpen(false); });
+window.matchMedia('(max-width: 900px)').addEventListener?.('change', () => { if (layout) { layout.root.classList.remove('nav-open'); syncMenuButton(); } });
 let cleanup = null;
 
 function parseHash() {
@@ -86,13 +114,13 @@ let layout = null;
 
 function renderLayout() {
   const nav = h('nav', { class: 'nav' });
-  const sidebar = h('aside', { class: 'sidebar' },
+  const sidebar = h('aside', { class: 'sidebar', id: 'sidebar' },
     brandMark(),
     nav,
-    h('div', { class: 'foot' }, 'UpDown Digital · v0.1.0'));
+    h('div', { class: 'foot' }, h('span', { class: 'foot-text' }, 'UpDown Digital · v0.1.0')));
   const content = h('main', { class: 'content' });
   const topbar = h('header', { class: 'topbar' },
-    h('button', { class: 'btn ghost icon-only menu-btn', onclick: () => sidebar.classList.toggle('open'), 'aria-label': 'Menu' }, icon('menu')),
+    h('button', { class: 'btn ghost icon-only menu-btn', type: 'button', onclick: toggleMenu, 'aria-label': 'Menu', 'aria-controls': 'sidebar' }, icon('menu')),
     h('div', { class: 'grow' }),
     h('div', { class: 'user' }, icon('users'), session.user.full_name || session.user.username,
       h('span', { class: 'badge' }, ROLES[session.user.role])),
@@ -100,10 +128,13 @@ function renderLayout() {
     btn('Sair', logout, { cls: 'ghost', ico: 'logout' }));
   for (const r of ROUTES) {
     if (r.role && !session.can(r.role)) continue;
-    nav.appendChild(h('a', { href: `#/${r.path}`, dataset: { path: r.path } }, icon(r.icon), r.label));
+    nav.appendChild(h('a', { href: `#/${r.path}`, dataset: { path: r.path }, title: r.label }, icon(r.icon), h('span', { class: 'nav-label' }, r.label)));
   }
-  layout = { nav, content, sidebar };
-  clear(app, h('div', { class: 'layout' }, sidebar, h('div', { class: 'main' }, topbar, content)));
+  const scrim = h('div', { class: 'nav-scrim', onclick: () => setMenuOpen(false) });
+  const root = h('div', { class: readCollapsed() ? 'layout nav-collapsed' : 'layout' }, sidebar, scrim, h('div', { class: 'main' }, topbar, content));
+  layout = { nav, content, sidebar, root, menuBtn: topbar.querySelector('.menu-btn') };
+  clear(app, root);
+  syncMenuButton();
   route();
 }
 
@@ -119,7 +150,7 @@ async function route() {
   const { path, params } = parseHash();
   const r = ROUTES.find((x) => x.path === path) || ROUTES[0];
   for (const a of layout.nav.querySelectorAll('a')) a.classList.toggle('active', a.dataset.path === r.path);
-  layout.sidebar.classList.remove('open');
+  setMenuOpen(false);
   if (cleanup) { cleanup(); cleanup = null; }
   if (r.role && !session.can(r.role)) {
     clear(layout.content, h('div', { class: 'empty' }, 'Você não tem permissão para acessar esta página.'));
