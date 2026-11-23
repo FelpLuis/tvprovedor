@@ -306,6 +306,13 @@ No cadastro do dashboard, **Modo de exibição → Dentro do player, via servido
 - o acesso ao `/dash/…` é protegido: só TVs ativadas com aquele dashboard ou usuários logados no
   painel (o botão **Abrir** da lista mostra exatamente o que a TV vê).
 
+- **Login único (SSO):** se o dashboard redireciona para um portal de login em outro endereço
+  (ex.: `monitoramento.updown.com.br` → `portal.updown.com.br/login?...&volta=...`), o portal
+  também passa pelo proxy, o login é preenchido e a volta ao dashboard funciona. Sites do mesmo
+  domínio do dashboard (`*.updown.com.br`) são aceitos automaticamente; portais de outros domínios
+  são informados em **Outros sites do login (avançado)**. O erro `net::ERR_BLOCKED_BY_RESPONSE`
+  na TV é exatamente o portal bloqueando a exibição direta, resolvido por este modo.
+
 Limitações: atualizações em tempo real por WebSocket não passam pelo proxy (a página continua
 recarregando no intervalo configurado). Sistemas que verificam o domínio de forma rígida podem
 precisar do modo "Dentro do player, direto" ou do app.
