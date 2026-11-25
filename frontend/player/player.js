@@ -844,43 +844,70 @@
     return request('GET', '/config').then(function (cfg) {
       setOnline(true);
       var running = state.config;
-      if (!force && running && running.config_hash === cfg.config_hash) { return null; }
+      if (!force && running && running.config_hash === cfg.config_hash) {
+        // mesma programação: renova os links assinados (usados no streaming) e completa downloads pendentes
+        refreshMediaUrls(running, cfg);
+        if (cfg.mode === 'media') { backgroundDownload(cfg, running); }
+        return null;
+      }
       if (cfg.mode !== 'media') {
         applyConfig(cfg);
         return null;
       }
-      // baixa tudo antes de trocar; libera espaço de arquivos que não serão mais usados
-      var keep = playlistShas(running).concat(playlistShas(cfg));
-      state.playbackState = running ? state.playbackState : 'loading';
-      if (!running || running.mode !== 'media') { showMessage(cfg.screen.name, 'Baixando conteúdo…'); }
-      return MediaCache.prune(keep).then(function () {
-        return MediaCache.ensureAll(cfg.playlist.items, function (done, total) {
-          state.downloadProgress = done + '/' + total;
-          if (!running || running.mode !== 'media') {
-            $('message-text').textContent = 'Baixando conteúdo… ' + done + ' de ' + total;
-          }
-        });
-      }).then(function (result) {
-        state.downloadProgress = null;
-        if (!result.ok) {
-          var names = result.failures.map(function (f) { return f.name + ' (' + f.error + ')'; }).join('; ');
-          setError('Falha no download: ' + names);
-          // sem playlist anterior válida, reproduz o que estiver disponível
-          if (!running || running.mode !== 'media') { applyConfig(cfg); }
-          return null;
-        }
-        if (running && running.mode === 'media' && media.playlist && !force) {
-          state.pendingReady = cfg; // aplica ao final do item atual
-        } else {
-          applyConfig(cfg);
-        }
-        return null;
-      });
+      // reproduz já — o que ainda não está no cache toca direto do servidor — e baixa em segundo plano
+      if (running && running.mode === 'media' && media.playlist && !force) {
+        state.pendingReady = cfg; // aplica ao final do item atual
+      } else {
+        applyConfig(cfg);
+      }
+      backgroundDownload(cfg, running);
+      return null;
     }).catch(function (err) {
       handleAuthError(err);
       if (!(err instanceof HttpError)) { setOnline(false); }
       throw err;
     }).then(function () { state.syncing = false; }, function (err) { state.syncing = false; throw err; });
+  }
+
+  /** Copia os links assinados novos (mesmo arquivo = mesmo sha256) para a playlist em reprodução. */
+  function refreshMediaUrls(running, cfg) {
+    if (!running || !running.playlist || !cfg.playlist) { return; }
+    var urls = {};
+    cfg.playlist.items.forEach(function (it) { urls[it.sha256] = it.url; });
+    running.playlist.items.forEach(function (it) { if (urls[it.sha256]) { it.url = urls[it.sha256]; } });
+    if (media.playlist && media.playlist !== running.playlist) {
+      media.playlist.items.forEach(function (it) { if (urls[it.sha256]) { it.url = urls[it.sha256]; } });
+    }
+  }
+
+  /** Download das mídias em segundo plano (um por vez); a reprodução não espera por ele. */
+  var bg = { running: false, queued: null };
+  function backgroundDownload(cfg, running) {
+    if (bg.running) { bg.queued = { cfg: cfg }; return; }
+    bg.running = true;
+    var keep = playlistShas(running).concat(playlistShas(cfg));
+    MediaCache.prune(keep).then(function () {
+      return MediaCache.ensureAll(cfg.playlist.items, function (done, total) {
+        state.downloadProgress = done < total ? done + '/' + total : null;
+      });
+    }).then(function (result) {
+      state.downloadProgress = null;
+      if (!result.ok) {
+        var names = result.failures.map(function (f) { return f.name + ' (' + f.error + ')'; }).join('; ');
+        setError('Falha no download (reproduzindo pelo servidor; nova tentativa em seguida): ' + names);
+      } else if (state.lastError && state.lastError.indexOf('Falha no download') === 0) {
+        setError(null);
+      }
+    }).catch(function (err) {
+      state.downloadProgress = null;
+      log('download em segundo plano:', err);
+    }).then(function () {
+      bg.running = false;
+      if (bg.queued) {
+        var q = bg.queued; bg.queued = null;
+        backgroundDownload(q.cfg, state.config);
+      }
+    });
   }
 
   function handleAuthError(err) {
