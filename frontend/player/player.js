@@ -548,16 +548,38 @@
       if (item.max_duration) {
         media.timer = setTimeout(finish, item.max_duration * 1000);
       }
-      // watchdog: vídeo travado por muito tempo -> próximo item
+      // watchdog: vídeo parado no mesmo ponto
+      var fromServer = url.indexOf('/player/cache/') !== 0 && url.indexOf('blob:') !== 0;
+      var nudged = false;
       media.stallTimer = setInterval(function () {
         if (gen !== media.generation) { clearInterval(media.stallTimer); return; }
+        var dur = v.duration;
+        // algumas TVs não disparam "ended" e ficam paradas no último quadro: trata como fim do vídeo
+        if (isFinite(dur) && dur > 0 && v.currentTime >= dur - 1 && (v.currentTime === lastTime || v.paused)) {
+          finish();
+          return;
+        }
         if (v.paused && !v.ended) { v.play().catch(function () { /* ignora */ }); }
-        if (v.currentTime === lastTime) {
-          stalledFor += 1;
-          if (stalledFor >= VIDEO_STALL_SECONDS) { itemFailed(item, 'vídeo travado'); }
-        } else {
+        if (v.currentTime !== lastTime) {
           stalledFor = 0;
           lastTime = v.currentTime;
+          return;
+        }
+        stalledFor += 1;
+        // tropeço do decodificador: um pequeno avanço costuma destravar
+        if (stalledFor === 8 && !nudged && isFinite(dur) && v.currentTime + 0.5 < dur) {
+          nudged = true;
+          try { v.currentTime = v.currentTime + 0.25; } catch (e) { /* ignora */ }
+        }
+        // carregando pela internet (ainda não baixado): espera mais antes de desistir
+        var buffering = v.readyState < 3;
+        var limit = fromServer && buffering ? VIDEO_STALL_SECONDS * 3 : VIDEO_STALL_SECONDS;
+        if (stalledFor >= limit) {
+          itemFailed(item, 'vídeo travado em ' + v.currentTime.toFixed(1) + 's de ' +
+            (isFinite(dur) ? dur.toFixed(1) + 's' : '?') +
+            (buffering ? ' (aguardando dados' + (fromServer ? ' do servidor — internet lenta?' : '') + ')'
+              : ' (decodificação — vídeo pesado para a TV? use H.264 até 1080p)') +
+            ' · origem: ' + (fromServer ? 'servidor' : 'cache da TV'));
         }
       }, 1000);
     };
