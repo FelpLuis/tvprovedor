@@ -133,5 +133,10 @@ def test_proxy_follows_sso_across_company_sites(client, admin):
 
         # sites fora do domínio da empresa não passam pelo proxy
         assert admin.get(f"{p}/~/https/evil.example.com/x").status_code == 403
+
+        # script injetado: navegações por JavaScript para o portal (sessão expirada) voltam ao proxy
+        shim = admin.get(f"{p}/__uds_shim.js").text
+        assert 'MAIN = "https://monitoramento.updown.com.br:9443"' in shim
+        assert 'DOMAIN = "updown.com.br"' in shim and "addEventListener('navigate'" in shim
     finally:
         dash_proxy.set_client(None)

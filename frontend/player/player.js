@@ -625,10 +625,59 @@
       for (var k in d) { if (d.hasOwnProperty(k)) { copy[k] = d[k]; } }
       copy.url = res.url;
       dashboard.start(copy);
+      watchProxiedDashboard(d);
     }).catch(function (err) {
       setError('Dashboard: sem acesso ao proxy (' + (err && err.message) + ')');
       setTimeout(function () { if (state.config && state.config.dashboard && state.config.dashboard.id === d.id) { startProxiedDashboard(d); } }, 15000);
     });
+  }
+
+  /**
+   * Mantém o dashboard via proxy no ar por dias seguidos:
+   * - renova o acesso ao proxy a cada 6 h (sem recarregar a tela);
+   * - vigia o iframe: se a página saiu do proxy (ex.: a sessão do site expirou e ele mandou para
+   *   o portal de login, que recusa ser aberto em iframe) ou o proxy recusou o acesso, reabre o
+   *   dashboard pelo proxy — o login automático entra de novo.
+   */
+  var dashWatch = { timer: null, renew: null, lastRestart: 0 };
+  function stopDashWatch() {
+    clearInterval(dashWatch.timer); clearInterval(dashWatch.renew);
+    dashWatch.timer = dashWatch.renew = null;
+  }
+  function watchProxiedDashboard(d) {
+    stopDashWatch();
+    dashWatch.renew = setInterval(function () {
+      fetch(API + '/dashboards/' + d.id + '/session', {
+        method: 'POST', credentials: 'same-origin', cache: 'no-store',
+        headers: { Authorization: 'Bearer ' + state.token, Accept: 'application/json' }
+      }).catch(function () { /* tenta de novo no próximo ciclo */ });
+    }, 6 * 3600 * 1000);
+    dashWatch.timer = setInterval(function () {
+      var frame = dashboard.current;
+      if (!frame || !state.online) { return; }
+      var problem = null;
+      try {
+        var href = frame.contentWindow.location.href;  // lança erro se a página saiu do proxy (outra origem)
+        var doc = frame.contentDocument;
+        if (href.indexOf(location.origin + '/') !== 0 && href !== 'about:blank') {
+          problem = 'a página saiu do proxy (login expirado?)';
+        } else if (!doc || href === 'about:blank') {
+          problem = null;
+        } else if (/Acesso não autorizado ao dashboard/.test((doc.body && doc.body.textContent) || '')) {
+          problem = 'acesso ao proxy expirou';
+        }
+      } catch (e) {
+        problem = 'a página saiu do proxy (login expirado?)';
+      }
+      if (!problem) { return; }
+      var now = Date.now();
+      if (now - dashWatch.lastRestart < 60000) { return; }  // no máximo 1 reabertura por minuto
+      dashWatch.lastRestart = now;
+      if (state.config && state.config.dashboard && state.config.dashboard.id === d.id) {
+        state.currentContent = d.name + ' (reabrindo: ' + problem + ')';
+        startProxiedDashboard(d);
+      }
+    }, 15000);
   }
 
   /**
@@ -713,6 +762,7 @@
     nativeCall('hideDashboard');
     stopMedia();
     dashboard.stop();
+    stopDashWatch();
     clearTimeout(fullReloadTimer);
     clearInterval(clockTimer);
   }
@@ -747,7 +797,8 @@
       state.currentContent = cfg.dashboard.name;
       startProxiedDashboard(cfg.dashboard);
       var hoursP = cfg.dashboard.full_reload_hours || 12;
-      fullReloadTimer = setTimeout(function () { if (state.online) { location.reload(); } }, hoursP * 3600 * 1000);
+      var reloadWhenOnline = function () { if (state.online) { location.reload(); } else { fullReloadTimer = setTimeout(reloadWhenOnline, 300000); } };
+      fullReloadTimer = setTimeout(reloadWhenOnline, hoursP * 3600 * 1000);
     } else if (cfg.mode === 'dashboard' && NATIVE && typeof NATIVE.showDashboard === 'function') {
       // app: navegador próprio em tela cheia (sem iframe), com login automático
       var dd = displaySettings();

@@ -89,6 +89,12 @@
     var settled = false;
 
     frame.onload = function () {
+      // carregamentos seguintes da mesma página (ex.: o site mandou para a tela de login):
+      // avisa de novo para o login automático agir
+      if (settled && self.current === frame) {
+        if (self.hooks.onLoad) { self.hooks.onLoad(frame, cfg); }
+        return;
+      }
       if (settled || self.pending !== frame) { return; }
       settled = true;
       clearTimeout(self.loadTimer);

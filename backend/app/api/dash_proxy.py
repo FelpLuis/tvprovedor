@@ -244,6 +244,46 @@ SHIM_JS = """(function(){
   if (ctx.orig) {
     try { history.replaceState(history.state, '', ctx.orig + location.hash); } catch (e) {}
   }
+  // navegações por script para os sites permitidos (ex.: sessão expirou e a página manda para o
+  // portal de login com o endereço completo) voltam para o proxy; fora dele o portal recusa o iframe
+  var PREFIX = %(prefix_json)s, MAIN = %(main)s, DOMAIN = %(domain)s, EXTRA = %(extra)s;
+  function allowed(u) {
+    var host = u.hostname.toLowerCase();
+    return u.origin === MAIN || EXTRA.indexOf(u.host.toLowerCase()) >= 0 || EXTRA.indexOf(host) >= 0 ||
+      (DOMAIN && (host === DOMAIN || host.slice(-DOMAIN.length - 1) === '.' + DOMAIN));
+  }
+  function proxied(u) {
+    if (u.origin === MAIN) return PREFIX + u.pathname + u.search + u.hash;
+    return PREFIX + '/~/' + u.protocol.replace(':', '') + '/' + u.host.toLowerCase() + u.pathname + u.search + u.hash;
+  }
+  function external(href) {
+    try { var u = new URL(href, location.href); } catch (e) { return null; }
+    if (u.origin === location.origin || !/^https?:$/.test(u.protocol) || !allowed(u)) return null;
+    return proxied(u);
+  }
+  if (window.navigation && navigation.addEventListener) {
+    navigation.addEventListener('navigate', function (e) {
+      var to = e.destination && external(e.destination.url);
+      if (!to || !e.cancelable || e.downloadRequest) return;
+      e.preventDefault();
+      location.assign(to);
+    });
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    var to = a && (!a.target || a.target === '_self') && external(a.href);
+    if (to) { e.preventDefault(); location.assign(to); }
+  }, true);
+  document.addEventListener('submit', function (e) {
+    var f = e.target, to = f && f.action && external(f.action);
+    if (to) f.action = to;
+  }, true);
+  var openOrig = window.open;
+  window.open = function (href, name, feat) {
+    var to = href && external(String(href));
+    if (to && (!name || name === '_self' || name === '_top' || name === '_parent')) { location.assign(to); return window; }
+    return openOrig.apply(window, arguments);
+  };
   if (!('serviceWorker' in navigator)) return;
   var p = '%(prefix)s/';
   function announce() {
@@ -326,7 +366,9 @@ async def proxy(dash_id: int, path: str, request: Request, db: Session = Depends
         return HTMLResponse("<h3>Acesso não autorizado ao dashboard.</h3>", status_code=401)
     site = Site(d)
     if path == "__uds_shim.js":
-        return Response(SHIM_JS % {"prefix": site.prefix}, media_type="application/javascript",
+        js = SHIM_JS % {"prefix": site.prefix, "prefix_json": json.dumps(site.prefix), "main": json.dumps(site.origin),
+                        "domain": json.dumps(site.domain), "extra": json.dumps(sorted(site.extra))}
+        return Response(js, media_type="application/javascript",
                         headers={"Cache-Control": "no-cache"})
     if path == "__uds_sw.js":
         js = SW_JS % {"prefix": json.dumps(site.prefix), "main": json.dumps(site.origin),
