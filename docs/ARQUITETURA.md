@@ -108,11 +108,14 @@ TV (player)                          Servidor                         Administra
    armazenamento e o **hash da configuração aplicada**.
 2. O servidor responde com o hash da configuração atual e os comandos pendentes.
 3. Se o hash mudou, o player busca `/api/player/config`. Para TVs de mídia:
-   - remove do cache o que não pertence nem à playlist atual nem à nova;
-   - baixa em sequência os arquivos que faltam e confere tamanho e SHA-256 (até 150 MB por
-     arquivo; acima disso só o tamanho, para não estourar a memória da TV);
-   - só troca a playlist **depois** que todos os arquivos estiverem no cache e **ao final do item
-     em exibição**. Se algum download falhar, continua a playlist anterior e reporta o erro.
+   - troca a playlist **ao final do item em exibição** (ou na hora, se nada estiver tocando),
+     sem esperar downloads: o que ainda não está no cache é reproduzido direto do servidor
+     (streaming com Range), e o que já está no cache sai dele;
+   - em segundo plano, remove do cache o que não pertence nem à playlist atual nem à nova e baixa
+     em sequência os arquivos que faltam, conferindo tamanho e SHA-256 (até 150 MB por arquivo;
+     acima disso só o tamanho, para não estourar a memória da TV). Cada arquivo passa a sair do
+     cache assim que termina de baixar; falhas são reportadas e tentadas de novo na próxima
+     sincronização. Os links assinados das mídias são renovados a cada sincronização.
 4. A última configuração válida fica no `localStorage`; o service worker guarda o player e as
    mídias. Assim a TV religa e volta a reproduzir mesmo sem internet.
 

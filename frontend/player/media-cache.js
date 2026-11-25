@@ -86,8 +86,8 @@
   }
 
   /**
-   * Garante que todos os itens estejam no cache. Baixa em sequência (evita
-   * saturar a rede/memória da TV) e só resolve se TODOS ficaram disponíveis.
+   * Baixa para o cache os itens que faltam, em sequência (evita saturar a
+   * rede/memória da TV). Informa se TODOS ficaram disponíveis.
    */
   function ensureAll(items, onProgress) {
     if (!supported()) { return Promise.resolve({ ok: true, cached: false }); }
@@ -142,17 +142,18 @@
   }
 
   /**
-   * URL para reprodução. Com service worker ativo, usa a rota de cache (suporta
-   * Range e não ocupa memória). Sem service worker, cria um blob: a partir do
-   * cache. Sem Cache Storage, usa a URL assinada da rede.
+   * URL para reprodução. Arquivo no cache: com service worker ativo usa a rota de
+   * cache (suporta Range e não ocupa memória); sem ele, cria um blob:. Arquivo
+   * ainda não baixado (ou sem Cache Storage): URL assinada do servidor (streaming).
    */
   function playbackUrl(item) {
     var swActive = navigator.serviceWorker && navigator.serviceWorker.controller;
     if (!supported()) { return Promise.resolve(item.url); }
-    if (swActive) { return Promise.resolve(keyFor(item.sha256)); }
     if (objectUrls[item.sha256]) { return Promise.resolve(objectUrls[item.sha256]); }
+    // ainda não baixado: reproduz direto do servidor (streaming) enquanto o download corre em segundo plano
     return openCache().then(function (c) { return c.match(keyFor(item.sha256)); }).then(function (r) {
       if (!r) { return item.url; }
+      if (swActive) { return keyFor(item.sha256); }
       return r.blob().then(function (b) {
         objectUrls[item.sha256] = URL.createObjectURL(b);
         return objectUrls[item.sha256];
