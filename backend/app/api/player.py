@@ -1,4 +1,5 @@
 """Endpoints usados pelas TVs. Nenhum deles dá acesso administrativo."""
+import hashlib
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
@@ -144,7 +145,28 @@ def poll_activation(data: ActivationPoll, request: Request, db: Session = Depend
 
 @router.get("/config")
 def get_config(screen: Screen = Depends(get_current_screen)) -> Dict[str, Any]:
-    return sign_playlist_urls(player_config(screen))
+    cfg = sign_playlist_urls(player_config(screen))
+    cfg["player_build"] = player_build()  # fora do hash: só identifica a versão do player
+    return cfg
+
+
+_BUILD: Dict[str, Any] = {}
+
+
+def player_build() -> str:
+    """Hash dos arquivos do player (calculado uma vez por processo; muda a cada atualização)."""
+    if "v" not in _BUILD:
+        h = hashlib.sha256()
+        folder = get_settings().frontend_dir / "player"
+        try:
+            for f in sorted(folder.glob("*")):
+                if f.is_file() and f.suffix in (".js", ".css", ".html", ".webmanifest"):
+                    h.update(f.name.encode())
+                    h.update(f.read_bytes())
+        except OSError:
+            pass
+        _BUILD["v"] = h.hexdigest()[:12]
+    return _BUILD["v"]
 
 
 @router.post("/heartbeat")
@@ -214,6 +236,8 @@ def heartbeat(data: HeartbeatIn, request: Request, screen: Screen = Depends(get_
         "config_hash": player_config(screen)["config_hash"],
         "heartbeat_interval": s.heartbeat_interval_seconds,
         "commands": out_cmds,
+        # versão dos arquivos do player no servidor: mudou (atualização) -> a TV recarrega sozinha
+        "player_build": player_build(),
     }
     # renovação do token antes de expirar
     if screen.token_expires_at and screen.token_expires_at - now < timedelta(days=s.device_token_renew_days):

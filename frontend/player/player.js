@@ -424,6 +424,7 @@
   function next() {
     var pl = media.playlist;
     if (!pl || !pl.items.length) { return; }
+    if (state.reloadForUpdate) { location.reload(); return; }  // player novo: troca entre um item e outro
     // troca de playlist sempre na fronteira entre itens: nunca interrompe um conteúdo
     if (state.pendingReady) {
       var cfg = state.pendingReady;
@@ -866,6 +867,7 @@
     state.syncing = true;
     return request('GET', '/config').then(function (cfg) {
       setOnline(true);
+      checkPlayerBuild(cfg.player_build);
       var running = state.config;
       if (!force && running && running.config_hash === cfg.config_hash) {
         // mesma programação: renova os links assinados (usados no streaming) e completa downloads pendentes
@@ -959,6 +961,20 @@
     state.heartbeatTimer = setTimeout(heartbeat, (delaySec || state.heartbeatInterval) * 1000);
   }
 
+  /**
+   * O servidor foi atualizado (arquivos do player mudaram): recarrega a página para usar a versão nova.
+   * Com mídia tocando, espera o fim do item atual; nos outros modos recarrega na hora.
+   */
+  var loadedBuild = null;
+  function checkPlayerBuild(build) {
+    if (!build) { return; }
+    if (!loadedBuild) { loadedBuild = build; return; }
+    if (build === loadedBuild || state.reloadForUpdate) { return; }
+    log('player atualizado no servidor (' + loadedBuild + ' -> ' + build + '): recarregando');
+    state.reloadForUpdate = true;
+    if (!(state.config && state.config.mode === 'media' && media.playlist)) { location.reload(); }
+  }
+
   function heartbeat() {
     if (!state.token) { return; }
     if (NATIVE) {
@@ -990,6 +1006,7 @@
         shareCredentials();
       }
       if (resp.power) { applyPower(resp.power); }
+      checkPlayerBuild(resp.player_build);
       var cmds = resp.commands || [];
       cmds.forEach(runCommand);
       var hash = state.config ? state.config.config_hash : null;
