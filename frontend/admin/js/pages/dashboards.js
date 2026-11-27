@@ -1,6 +1,7 @@
 import { get, post, patch, del } from '../api.js';
 import { h, clear, btn, formModal, confirmDialog, toast, toastError, emptyState, DASH_KINDS } from '../ui.js';
 import { session } from '../session.js';
+import { openCropEditor } from './crop.js';
 
 const AUTH = [
   ['none', 'Sem autenticação (rede interna / público)'],
@@ -83,7 +84,7 @@ function toBody(v, previous = {}) {
 }
 
 function proxiedHref(d) {
-  try { const u = new URL(d.url, location.origin); return `/dash/${d.id}${u.pathname}${u.search}`; } catch { return d.url; }
+  try { const u = new URL(d.url, location.origin); return `/dash/${d.id}${u.pathname}${u.search}${u.hash}`; } catch { return d.url; }
 }
 
 function openForm(d, onDone) {
@@ -125,6 +126,9 @@ export async function render(root) {
         h('td', { class: 'nowrap', style: 'text-align:right' },
           h('a', { class: 'btn sm', href: d.display_mode === 'proxy' ? proxiedHref(d) : d.url, target: '_blank', rel: 'noopener noreferrer',
             title: d.display_mode === 'proxy' ? 'Abre pelo proxy do servidor (como a TV vê)' : '' }, 'Abrir'), ' ',
+          session.can('admin') && d.display_mode === 'proxy'
+            ? btn(d.options.crop ? `Recorte (${(d.options.crop.keep || []).length})` : 'Recortar', () => openCropEditor(d, proxiedHref, load),
+              { cls: `sm ${d.options.crop ? 'primary' : ''}`, title: 'Mostrar na TV só algumas partes da página (ex.: o 3D e o resumo)' }) : null, ' ',
           session.can('admin') ? btn('Editar', () => openForm(d, load), { cls: 'sm' }) : null, ' ',
           session.can('admin') ? btn('Excluir', async () => {
             const msg = d.screen_count

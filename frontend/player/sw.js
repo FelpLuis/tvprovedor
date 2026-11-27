@@ -6,7 +6,7 @@
  */
 'use strict';
 
-var SHELL_CACHE = 'uds-shell-v3';
+var SHELL_CACHE = 'uds-shell-v4';
 var MEDIA_CACHE = 'uds-media-v1';
 var SHELL = [
   '/player/',
@@ -15,6 +15,7 @@ var SHELL = [
   '/player/player.js',
   '/player/media-cache.js',
   '/player/dashboard.js',
+  '/player/remote-input.js',
   '/player/manifest.webmanifest',
   '/player/icon-192.png',
   '/player/brand/logo-updown.png',

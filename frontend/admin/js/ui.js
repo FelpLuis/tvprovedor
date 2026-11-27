@@ -55,6 +55,7 @@ const ICONS = {
   refresh: '<path d="M17.6 6.4A8 8 0 1 0 19.7 14h-2.1a6 6 0 1 1-1.4-6.2L13 11h7V4z"/>',
   copy: '<path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11z"/>',
   play: '<path d="M8 5v14l11-7z"/>',
+  pointer: '<path d="M5 3l14 7-6 1.6L16.5 19l-2.6 1.3-3.5-7.4L5 17z"/>',
 };
 
 export function icon(name) {
