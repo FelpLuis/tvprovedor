@@ -164,6 +164,7 @@
     el.style.transform = 'rotate(' + rot + 'deg) scale(' + scale + ')';
     el.style.setProperty('--vmin', (Math.min(lw, lh) / 100) + 'px');
     el.style.setProperty('--vw', (lw / 100) + 'px');
+    if (typeof dashboard !== 'undefined' && dashboard) { dashboard.resize(); }
     var wantFullscreen = d.fullscreen !== false;
     if (NATIVE) {
       try { NATIVE.setFullscreen(wantFullscreen); } catch (e) { /* ignora */ }
@@ -1208,6 +1209,7 @@
       proxy_path: frame && frame.src ? frame.src.replace(location.origin, '') : null,
       page_path: path,
       logical: state.display ? state.display.logical : null,
+      page: frame ? dashboard.pageSize() : null,  // tamanho em que a página é desenhada (o espelho usa o mesmo)
       content: state.currentContent || null
     });
   }

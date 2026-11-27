@@ -69,7 +69,8 @@ export async function render(root, params = []) {
 
   function applyStatus(st) {
     status = st;
-    if (Array.isArray(st.logical) && st.logical[0] > 0) { logical = st.logical; layout(); }
+    const size = Array.isArray(st.page) && st.page[0] > 0 ? st.page : st.logical;
+    if (Array.isArray(size) && size[0] > 0) { logical = size; layout(); }
     contentInfo.textContent = st.content ? `Exibindo: ${st.content}` : '';
     const ok = st.mode === 'dashboard' && st.dashboard && st.dashboard.proxied && st.proxy_path;
     if (!ok) {

@@ -129,6 +129,51 @@
     if (first) { this._report('loading', cfg.name); }
     frame.src = cfg.url; // um iframe novo sempre recarrega a página por completo
     this.container.appendChild(frame);
+    this._sizeFrame(frame);
+  };
+
+  /**
+   * Tamanho da página: muitas TVs informam ao navegador uma tela pequena (ex.: 960×540 com DPR 2)
+   * e painéis feitos para Full HD cortam. A página é desenhada no tamanho de referência e reduzida
+   * para caber (como uma imagem), igual ao que se vê num PC.
+   */
+  DashboardPlayer.prototype.pageSize = function () {
+    var cw = this.container.clientWidth || window.innerWidth;
+    var ch = this.container.clientHeight || window.innerHeight;
+    var mode = (this.cfg && this.cfg.page_size) || 'auto';
+    var m = /^(\d+)x(\d+)$/.exec(mode);
+    if (m) {
+      var w = +m[1], hh = +m[2];
+      if (ch > cw) { var t = w; w = hh; hh = t; }  // TV em retrato: mesmo tamanho, em pé
+      return [w, hh];
+    }
+    var short = Math.min(cw, ch);
+    if (mode === 'native' || short >= 900) { return [cw, ch]; }
+    var k = 1080 / short;  // automático: como uma tela Full HD com o formato desta TV
+    return [Math.round(cw * k), Math.round(ch * k)];
+  };
+
+  DashboardPlayer.prototype._sizeFrame = function (frame) {
+    var cw = this.container.clientWidth || window.innerWidth;
+    var ch = this.container.clientHeight || window.innerHeight;
+    var size = this.pageSize();
+    if (size[0] === cw && size[1] === ch) {
+      frame.style.width = frame.style.height = frame.style.transform = frame.style.left = frame.style.top = '';
+      return;
+    }
+    var scale = Math.min(cw / size[0], ch / size[1]);
+    frame.style.width = size[0] + 'px';
+    frame.style.height = size[1] + 'px';
+    frame.style.transformOrigin = '0 0';
+    frame.style.transform = 'scale(' + scale + ')';
+    frame.style.left = Math.round((cw - size[0] * scale) / 2) + 'px';
+    frame.style.top = Math.round((ch - size[1] * scale) / 2) + 'px';
+  };
+
+  /** A tela mudou (orientação, resolução): reajusta as páginas abertas. */
+  DashboardPlayer.prototype.resize = function () {
+    if (this.current) { this._sizeFrame(this.current); }
+    if (this.pending) { this._sizeFrame(this.pending); }
   };
 
   global.DashboardPlayer = DashboardPlayer;
