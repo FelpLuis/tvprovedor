@@ -52,6 +52,32 @@ se conecta a elas. Funciona com TVs em outras redes, atrás de NAT/firewall, sem
 Comandos, programação, tela, energia e volume chegam na resposta do heartbeat (30 s); em espera,
 o app Android consulta `GET /api/player/power` a cada minuto.
 
+Além do heartbeat, cada TV mantém um WebSocket de saída (`/api/player/live`, `api/live.py`;
+autenticação pela primeira mensagem `{"auth": token}`, nunca na URL). Por ele o servidor avisa
+quando há comando ou programação nova (`poke` → a TV faz o heartbeat na hora, ~0,3 s) e repassa o
+**controle ao vivo**. Se o canal cair, tudo continua pelo heartbeat. O servidor roda com um único
+processo (`--workers 1`), que guarda as conexões em memória.
+
+## Controle ao vivo
+
+Página **Controle ao vivo** (operador ou admin): o gerenciador abre `/api/screens/{id}/live`
+(cookie da sessão + verificação de `Origin`; auditado como `screen.live_control`) e mostra um
+**espelho**: o mesmo dashboard aberto pelo proxy, no tamanho lógico da tela da TV. Mouse, rolagem e
+teclado sobre o espelho viram eventos com coordenadas normalizadas (0–1), aplicados no espelho e
+repassados à TV, que os reproduz no iframe do dashboard (`player/remote-input.js`: pointer/mouse/
+wheel/keyboard sintéticos; `setPointerCapture` é neutralizado pelo script injetado para controles
+3D como o OrbitControls). A TV mostra um cursor e suspende a atualização automática da página
+enquanto alguém controla. "Sincronizar" recarrega o espelho e a TV juntos. Funciona com dashboards
+no modo **Dentro do player (proxy)**.
+
+## Recorte de dashboards
+
+Em **Dashboards BI → Recortar**, o administrador clica nas partes da página que a TV deve mostrar
+(ex.: o 3D e o resumo de equipamentos). Os seletores CSS ficam em `options.crop`
+(`keep`, `arrange`: grade/colunas/linhas/original, `background`) e o script injetado pelo proxy
+esconde o resto e posiciona as partes escolhidas em tela cheia, reaplicando quando a página
+(SPA) se redesenha. A âncora da URL (`#f1a-central`) é preservada.
+
 ## Proxy de dashboards
 
 `/dash/{id}/…` (`api/dash_proxy.py`) repassa as requisições para a origem cadastrada no dashboard

@@ -219,6 +219,9 @@ export async function openScreenDetail(id, onChange) {
         try { await del(`/screens/${s.id}`); toast('TV excluída', 'success'); m.close(); if (onChange) onChange(); } catch (e) { toastError(e); }
       }, { cls: 'sm danger', ico: 'trash' }));
     }
+    if (s.activated && session.can('operator')) {
+      actions.unshift(btn('Controle ao vivo', () => { m.close(); location.hash = `#/ao-vivo/${s.id}`; }, { cls: 'sm primary', ico: 'pointer' }));
+    }
     clear(head, statusBadge(s), h('span', { class: 'badge primary' }, PROFILES[s.profile]),
       s.in_sync ? h('span', { class: 'badge success' }, 'Configuração sincronizada')
         : (s.activated ? h('span', { class: 'badge warning' }, 'Sincronização pendente') : null),

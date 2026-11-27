@@ -66,6 +66,8 @@
     var secs = this.cfg && this.cfg.refresh_seconds;
     if (!secs) { return; }
     this.refreshTimer = setTimeout(function () {
+      // durante o controle ao vivo não recarrega a página (perderia o que está sendo mostrado)
+      if (self.hooks.holdRefresh && self.hooks.holdRefresh()) { self._scheduleRefresh(); return; }
       if (self._isOnline()) {
         self._load(false);
       } else {

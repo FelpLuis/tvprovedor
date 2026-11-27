@@ -10,7 +10,7 @@ from sqlalchemy.exc import DBAPIError, OperationalError
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import auth, cameras, dash_proxy, dashboards, groups, media, player, playlists, screens, system, users
+from app.api import auth, cameras, dash_proxy, dashboards, live, groups, media, player, playlists, screens, system, users
 from app.api.dash_proxy import fallback_redirect, iframe_redirect
 from app.api.system import APP_VERSION
 from app.core.config import get_settings
@@ -85,6 +85,7 @@ def create_app() -> FastAPI:
     for r in (auth, users, groups, screens, media, playlists, dashboards, cameras, player, system):
         app.include_router(r.router, prefix="/api")
     app.include_router(dash_proxy.router)
+    app.include_router(live.router)
 
     @app.exception_handler(OperationalError)
     async def database_unavailable(request: Request, exc: DBAPIError):

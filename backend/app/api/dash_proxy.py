@@ -93,7 +93,8 @@ def proxied_url(d: Dashboard, url: Optional[str] = None) -> str:
     """URL do dashboard através do proxy (caminho + consulta da URL cadastrada)."""
     parts = urlsplit(url or d.url)
     path = parts.path or "/"
-    return f"/dash/{d.id}{path}" + (f"?{parts.query}" if parts.query else "")
+    return (f"/dash/{d.id}{path}" + (f"?{parts.query}" if parts.query else "")
+            + (f"#{parts.fragment}" if parts.fragment else ""))
 
 
 @router.post("/api/player/dashboards/{dash_id}/session")
@@ -125,6 +126,25 @@ def _base_domain(host: str) -> str:
 
 def _is_ip(host: str) -> bool:
     return bool(re.fullmatch(r"[\d.]+|\[[0-9a-f:]+\]", host))
+
+
+def _crop_options(d: Dashboard) -> Optional[dict]:
+    """Recorte configurado no gerenciador (somente valores simples, nada de código)."""
+    crop = (d.options or {}).get("crop")
+    if not isinstance(crop, dict):
+        return None
+    sel = lambda xs: [x[:300] for x in (xs or []) if isinstance(x, str) and x.strip()][:20]  # noqa: E731
+    out = {"keep": sel(crop.get("keep")), "hide": sel(crop.get("hide"))}
+    if crop.get("arrange") in ("original", "grid", "columns", "rows"):
+        out["arrange"] = crop["arrange"]
+    if isinstance(crop.get("css"), str):
+        out["css"] = crop["css"][:5000]
+    bg = crop.get("background")
+    if isinstance(bg, str) and re.fullmatch(r"#[0-9a-fA-F]{3,8}|[a-z]+", bg):
+        out["background"] = bg
+    if not out["keep"] and not out["hide"] and not out.get("css"):
+        return None
+    return out
 
 
 class Site:
@@ -284,6 +304,77 @@ SHIM_JS = """(function(){
     if (to && (!name || name === '_self' || name === '_top' || name === '_parent')) { location.assign(to); return window; }
     return openOrig.apply(window, arguments);
   };
+  // controle ao vivo: eventos sintéticos não têm "ponteiro real"; setPointerCapture lançaria erro e
+  // interromperia controles 3D (ex.: OrbitControls). Sem captura, o player mantém o alvo do arrasto.
+  ['setPointerCapture', 'releasePointerCapture'].forEach(function (m) {
+    var orig = Element.prototype[m];
+    if (!orig || orig.__uds) return;
+    var wrapped = function () { try { return orig.apply(this, arguments); } catch (e) { return undefined; } };
+    wrapped.__uds = true;
+    Element.prototype[m] = wrapped;
+  });
+
+  // recorte: mostra só as partes escolhidas da página (ex.: o 3D e o resumo)
+  var CROP = %(crop)s;
+  function cropOff() { try { return !!(window.parent && window.parent !== window && window.parent.__udsNoCrop); } catch (e) { return false; } }
+  if (CROP && !cropOff()) {
+    var keep = CROP.keep || [], hide = CROP.hide || [], arrange = CROP.arrange || 'original';
+    var style = document.createElement('style');
+    var css = '';
+    if (keep.length) {
+      css += 'html,body{background:' + (CROP.background || '#0b0730') + '!important}' +
+        'body>:not([data-uds-path]):not([data-uds-keep]),[data-uds-path]>:not([data-uds-path]):not([data-uds-keep]){display:none!important}' +
+        '[data-uds-path]{visibility:visible!important}';
+    }
+    if (hide.length) css += hide.join(',') + '{display:none!important}';
+    if (CROP.css) css += CROP.css;
+    style.textContent = css;
+    var marked = [];
+    var lastSig = '';
+    var apply = function () {
+      if (!document.body) return;
+      if (!style.parentNode) (document.head || document.documentElement).appendChild(style);
+      var found = [];
+      keep.forEach(function (sel) {
+        try { var el = document.querySelector(sel); if (el) found.push(el); } catch (e) {}
+      });
+      var sig = found.map(function (e) { return e.tagName + (e.id || '') + e.className; }).join('|') + found.length;
+      if (found.length && sig === lastSig && found.every(function (e) { return e.hasAttribute('data-uds-keep'); })) return;
+      lastSig = sig;
+      marked.forEach(function (e) { e.removeAttribute('data-uds-keep'); e.removeAttribute('data-uds-path'); e.style.removeProperty('position');
+        ['top', 'left', 'width', 'height', 'z-index', 'margin', 'max-width', 'max-height', 'box-sizing'].forEach(function (k) { e.style.removeProperty(k); }); });
+      marked = [];
+      if (keep.length && !found.length) { style.disabled = true; return; }  // nada encontrado ainda: não esconde tudo
+      style.disabled = false;
+      var n = found.length;
+      var cols = arrange === 'columns' ? n : arrange === 'rows' ? 1 : Math.ceil(Math.sqrt(n));
+      var rows = Math.ceil(n / cols);
+      var gap = 0.6;  // %%
+      found.forEach(function (el, i) {
+        el.setAttribute('data-uds-keep', '');
+        marked.push(el);
+        for (var p = el.parentElement; p && p !== document.documentElement; p = p.parentElement) {
+          if (!p.hasAttribute('data-uds-path')) { p.setAttribute('data-uds-path', ''); marked.push(p); }
+        }
+        if (arrange !== 'original') {
+          var c = i %% cols, r = Math.floor(i / cols);
+          var w = (100 - gap * (cols + 1)) / cols, hgt = (100 - gap * (rows + 1)) / rows;
+          var set = function (k, v) { el.style.setProperty(k, v, 'important'); };
+          set('position', 'fixed'); set('box-sizing', 'border-box'); set('margin', '0'); set('z-index', '2147483000');
+          set('left', (gap + c * (w + gap)) + 'vw'); set('top', (gap + r * (hgt + gap)) + 'vh');
+          set('width', w + 'vw'); set('height', hgt + 'vh'); set('max-width', 'none'); set('max-height', 'none');
+        }
+      });
+      // gráficos/3D recalculam o tamanho ao receber "resize"
+      setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 50);
+    };
+    var timer = null;
+    var schedule = function () { clearTimeout(timer); timer = setTimeout(apply, 250); };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply); else apply();
+    window.addEventListener('load', apply);
+    new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
+  }
+
   if (!('serviceWorker' in navigator)) return;
   var p = '%(prefix)s/';
   function announce() {
@@ -367,7 +458,8 @@ async def proxy(dash_id: int, path: str, request: Request, db: Session = Depends
     site = Site(d)
     if path == "__uds_shim.js":
         js = SHIM_JS % {"prefix": site.prefix, "prefix_json": json.dumps(site.prefix), "main": json.dumps(site.origin),
-                        "domain": json.dumps(site.domain), "extra": json.dumps(sorted(site.extra))}
+                        "domain": json.dumps(site.domain), "extra": json.dumps(sorted(site.extra)),
+                        "crop": json.dumps(_crop_options(d)).replace("</", "<\\/")}
         return Response(js, media_type="application/javascript",
                         headers={"Cache-Control": "no-cache"})
     if path == "__uds_sw.js":

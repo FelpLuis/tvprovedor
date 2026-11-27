@@ -81,3 +81,10 @@ h1 { font-size: calc(var(--vmin) * 4.5); font-weight: 500; margin: 0 0 calc(var(
 .identify-box pre { margin: 0; font: calc(var(--vmin) * 2.6)/1.5 ui-monospace, monospace; white-space: pre-wrap; text-align: left; }
 
 .standby { position: fixed; inset: 0; background: #000; z-index: 30; }
+
+/* controle ao vivo: ponteiro de quem controla pelo gerenciador */
+.live-cursor { position: absolute; z-index: 50; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
+  border: 3px solid #fff; background: rgba(0, 206, 255, .45); box-shadow: 0 0 0 2px rgba(155, 0, 255, .8), 0 0 18px rgba(0, 206, 255, .8);
+  pointer-events: none; transition: transform .1s, opacity .3s; }
+.live-cursor.pressed { transform: scale(.75); background: rgba(155, 0, 255, .6); }
+.live-cursor.hidden { opacity: 0; }

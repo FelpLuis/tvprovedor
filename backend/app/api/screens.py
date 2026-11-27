@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.api import live
 from app.api.deps import conflict, get_or_404
 from app.core.permissions import require_admin, require_operator, require_viewer
 from app.core.security import normalize_activation_code
@@ -209,6 +210,7 @@ def update_screen(screen_id: int, data: ScreenUpdate, request: Request, db: Sess
     audit.record(db, "screen.updated", request=request, user=user, entity_type="screen", entity_id=screen.id,
                  details={k: (v.value if hasattr(v, "value") else v) for k, v in changes.items()})
     db.commit()
+    live.hub.poke(screen.id)  # aplica na TV sem esperar o heartbeat
     db.refresh(screen)
     return screen_to_out(screen)
 
@@ -345,4 +347,5 @@ def send_command(screen_id: int, data: CommandCreate, request: Request, db: Sess
     audit.record(db, "screen.command_sent", request=request, user=user, entity_type="screen",
                  entity_id=screen.id, details={"command": cmd.command, "command_id": cmd.id})
     db.commit()
+    live.hub.poke(screen.id)  # TV conectada ao canal ao vivo busca o comando na hora
     return cmd

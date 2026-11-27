@@ -613,7 +613,8 @@
 
   var dashboard = new DashboardPlayer($('dashboard'), {
     isOnline: function () { return state.online; },
-    onLoad: function (frame, dcfg) { autoLogin(frame, dcfg, 0, 0); },
+    holdRefresh: function () { return live.admins > 0; },
+    onLoad: function (frame, dcfg) { autoLogin(frame, dcfg, 0, 0); liveStatus(); },
     onState: function (s, detail) {
       if (s === 'playing') {
         state.playbackState = 'playing';
@@ -1162,11 +1163,117 @@
     }).catch(function (e) { log('service worker indisponível', e); });
   }
 
+  // ---------------------------------------------------------------- controle ao vivo
+
+  /**
+   * Canal em tempo real com o servidor (WebSocket de saída, como o heartbeat):
+   * - comando novo no gerenciador: busca na hora (sem esperar o heartbeat);
+   * - controle ao vivo: reproduz no dashboard o mouse/teclado de quem está no gerenciador.
+   */
+  var live = { ws: null, retry: 2, admins: 0, timer: null, ping: null, cursorTimer: null };
+  var remote = window.UdsRemoteInput ? new window.UdsRemoteInput(function () { return dashboard.current; }) : null;
+
+  function liveSend(msg) {
+    if (live.ws && live.ws.readyState === 1) { try { live.ws.send(JSON.stringify(msg)); } catch (e) { /* ignora */ } }
+  }
+
+  function liveStatus() {
+    if (!live.ws || live.ws.readyState !== 1) { return; }
+    var cfg = state.config || {};
+    var frame = dashboard.current, path = null;
+    if (frame) {
+      try { path = frame.contentWindow.location.pathname + frame.contentWindow.location.search + frame.contentWindow.location.hash; } catch (e) { path = null; }
+    }
+    liveSend({
+      t: 'status', mode: cfg.mode || null,
+      dashboard: cfg.dashboard ? { id: cfg.dashboard.id, name: cfg.dashboard.name, proxied: isProxied(cfg.dashboard) } : null,
+      // caminho real no proxy (a página pode mostrar o endereço original) — o espelho abre o mesmo
+      proxy_path: frame && frame.src ? frame.src.replace(location.origin, '') : null,
+      page_path: path,
+      logical: state.display ? state.display.logical : null,
+      content: state.currentContent || null
+    });
+  }
+
+  function liveConnect() {
+    clearTimeout(live.timer);
+    if (!state.token || !window.WebSocket) { live.timer = setTimeout(liveConnect, 30000); return; }
+    var ws;
+    try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/player/live'); } catch (e) {
+      live.timer = setTimeout(liveConnect, live.retry * 1000); return;
+    }
+    live.ws = ws;
+    ws.onopen = function () {
+      live.retry = 2;
+      ws.send(JSON.stringify({ auth: state.token }));
+      clearInterval(live.ping);
+      live.ping = setInterval(function () { liveSend({ t: 'ping' }); }, 25000);
+    };
+    ws.onmessage = function (ev) {
+      var m;
+      try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (!m || typeof m !== 'object') { return; }
+      if (m.t === 'hello') { live.admins = m.admins || 0; liveStatus(); }
+      else if (m.t === 'poke') { scheduleHeartbeat(0.2); }
+      else if (m.t === 'admins') { live.admins = m.count || 0; liveStatus(); if (!live.admins) { hideCursor(); } }
+      else if (m.t === 'input' && m.e) { liveInput(m.e); }
+      else if (m.t === 'reload') { dashboard.reload(); }
+      else if (m.t === 'navigate' && typeof m.path === 'string') { liveNavigate(m.path); }
+    };
+    ws.onclose = function (ev) {
+      clearInterval(live.ping);
+      if (live.ws === ws) { live.ws = null; }
+      live.admins = 0;
+      hideCursor();
+      if (ev.code === 4401) { live.retry = 300; }  // token recusado: o heartbeat trata a reativação
+      live.timer = setTimeout(liveConnect, live.retry * 1000);
+      live.retry = Math.min(live.retry * 2, 60);
+    };
+    ws.onerror = function () { /* onclose cuida da reconexão */ };
+  }
+
+  function liveInput(e) {
+    if (!remote || !dashboard.current) { return; }
+    if (e.k !== 'key') { showCursor(e.x, e.y, e.bs); }
+    remote.apply(e);
+  }
+
+  function liveNavigate(path) {
+    var d = state.config && state.config.dashboard;
+    var frame = dashboard.current;
+    // só dentro do proxy do dashboard desta TV
+    if (!frame || !d || path.indexOf('/dash/' + d.id + '/') !== 0) { return; }
+    frame.src = path;
+  }
+
+  function showCursor(x, y, buttons) {
+    var box = $('dashboard');
+    var cur = $('live-cursor');
+    if (!cur) {
+      cur = document.createElement('div');
+      cur.id = 'live-cursor';
+      cur.className = 'live-cursor';
+      box.appendChild(cur);
+    }
+    cur.style.left = (Math.min(1, Math.max(0, Number(x) || 0)) * 100) + '%';
+    cur.style.top = (Math.min(1, Math.max(0, Number(y) || 0)) * 100) + '%';
+    cur.classList.toggle('pressed', !!buttons);
+    cur.classList.remove('hidden');
+    clearTimeout(live.cursorTimer);
+    live.cursorTimer = setTimeout(hideCursor, 4000);
+  }
+
+  function hideCursor() {
+    var cur = $('live-cursor');
+    if (cur) { cur.classList.add('hidden'); }
+  }
+
   // ---------------------------------------------------------------- inicialização
 
   function boot() {
     state.token = lsGet(LS_TOKEN);
     if (!state.token) { startActivation(); return; }
+    if (!live.ws) { liveConnect(); }
     shareCredentials();
     var stored = null;
     try { stored = JSON.parse(lsGet(LS_CONFIG) || 'null'); } catch (e) { stored = null; }
