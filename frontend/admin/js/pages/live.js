@@ -1,6 +1,6 @@
 // Controle ao vivo: espelho do dashboard da TV + mouse/teclado repassados para a TV em tempo real.
-import { get } from '../api.js';
-import { h, clear, btn, toast } from '../ui.js';
+import { get, post } from '../api.js';
+import { h, clear, btn, toast, toastError } from '../ui.js';
 
 function loadRemoteInput() {
   if (window.UdsRemoteInput) return Promise.resolve();
@@ -22,7 +22,7 @@ export async function render(root, params = []) {
     screens.map((s) => h('option', { value: s.id, selected: s.id === screenId }, `${s.identifier} — ${s.name}`)));
   const tvBadge = h('span', { class: 'badge' }, 'conectando…');
   const contentInfo = h('span', { class: 'muted small' });
-  const hint = h('div', { class: 'alert info', style: 'margin-bottom:12px' });
+  const hint = h('div', { class: 'alert info', style: 'margin-bottom:12px' }, 'Conectando ao servidor…');
   const stage = h('div', { class: 'live-stage' });
   const mirror = h('iframe', { class: 'live-mirror', title: 'Espelho da TV', referrerpolicy: 'no-referrer-when-downgrade' });
   const overlay = h('div', { class: 'live-overlay', tabindex: '0', title: 'Clique para controlar. Teclado: clique aqui e digite.' });
@@ -46,9 +46,25 @@ export async function render(root, params = []) {
     mirror.style.transform = `scale(${scale})`;
   }
 
+  const reloadTv = async () => {
+    try {
+      await post(`/screens/${screenId}/commands`, { command: 'reload_page' });
+      toast('Pedido enviado: a TV recarrega o player em até 30 segundos e conecta ao controle ao vivo.', 'success', 7000);
+    } catch (e) { toastError(e); }
+  };
+
   function setTv(online) {
     tvBadge.className = `badge ${online ? 'success' : 'danger'}`;
     tvBadge.textContent = online ? 'TV conectada' : 'TV desconectada';
+    if (!online) {
+      hint.className = 'alert warning';
+      clear(hint,
+        h('div', null, h('b', null, 'A TV não está conectada ao controle ao vivo. '),
+          'Se ela está ligada e exibindo conteúdo, provavelmente ainda roda o player antigo (de antes da atualização do servidor). ',
+          'Recarregue o player da TV uma vez — a partir daí ela se atualiza sozinha. ',
+          'Se a TV estiver desligada ou sem internet, ela conecta assim que voltar.'),
+        h('div', { style: 'margin-top:8px' }, btn('Recarregar player da TV', reloadTv, { cls: 'sm primary', ico: 'refresh' })));
+    }
   }
 
   function applyStatus(st) {
@@ -64,6 +80,7 @@ export async function render(root, params = []) {
       return;
     }
     hint.className = 'alert info';
+    clear(hint);
     hint.textContent = 'Use o mouse sobre a imagem: clicar, arrastar (girar o 3D), rolar (zoom) e digitar. A TV repete cada movimento. ' +
       'Se as telas ficarem diferentes, use "Sincronizar".';
     if (!mirror.dataset.src || mirror.dataset.dash !== String(st.dashboard.id)) {
