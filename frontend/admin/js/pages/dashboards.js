@@ -10,6 +10,14 @@ const AUTH = [
   ['public_embed', 'Link de incorporação oficial'],
   ['browser_session', 'Sessão já autenticada no navegador da TV'],
 ];
+const PAGE_SIZES = [
+  ['auto', 'Automático — como uma tela Full HD (recomendado)'],
+  ['1920x1080', 'Full HD (1920×1080)'],
+  ['1280x720', 'HD (1280×720) — letras maiores'],
+  ['2560x1440', 'QHD (2560×1440) — cabe mais coisa'],
+  ['3840x2160', '4K (3840×2160)'],
+  ['native', 'Tamanho que a TV informa (sem ajuste)'],
+];
 const MODES = [
   ['proxy', 'Dentro do player, via servidor (recomendado: UpDown BI, páginas com login ou que bloqueiam iframe)'],
   ['iframe', 'Dentro do player, direto (páginas públicas que permitem iframe)'],
@@ -48,6 +56,8 @@ function fields(values, isEdit) {
         help: 'Via servidor: sites do mesmo domínio do dashboard (ex.: portal.updown.com.br) já são aceitos. Informe aqui só portais de login de outros domínios.' },
       { name: 'display_mode', label: 'Modo de exibição', type: 'select', options: MODES, full: true,
         help: 'Via servidor: o UpDown Digital busca a página e a mostra dentro do player, sem o bloqueio de iframe, e o login é preenchido sozinho. A TV não precisa enxergar o BI; quem acessa é o servidor.' },
+      { name: 'page_size', label: 'Tamanho da página', type: 'select', options: PAGE_SIZES, full: true,
+        help: 'Se a página cortar na TV e no PC não, deixe em "Automático" ou escolha Full HD: a página é desenhada nesse tamanho e reduzida para caber na tela, como no PC. Vale para o modo "Dentro do player".' },
       { name: 'kiosk', label: 'Modo kiosk (Grafana/Zabbix)', type: 'checkbox', default: true },
       { name: 'theme', label: 'Tema (Grafana)', type: 'select', options: [['', 'Padrão'], ['dark', 'Escuro'], ['light', 'Claro']] },
       { name: 'load_timeout_seconds', label: 'Tempo limite de carregamento (s)', type: 'number', min: 10, default: 60 },
@@ -79,6 +89,8 @@ function toBody(v, previous = {}) {
   if (v.theme) options.theme = v.theme; else delete options.theme;
   if (v.load_timeout_seconds) options.load_timeout_seconds = v.load_timeout_seconds;
   if (v.full_reload_hours) options.full_reload_hours = v.full_reload_hours;
+  if (v.page_size && v.page_size !== 'auto') options.page_size = v.page_size; else delete options.page_size;
+  delete v.page_size;
   const { kiosk, theme, load_timeout_seconds, full_reload_hours, ...rest } = v;
   return { ...rest, refresh_seconds: v.refresh_seconds || 0, options };
 }

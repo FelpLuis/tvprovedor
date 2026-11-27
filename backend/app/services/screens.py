@@ -48,6 +48,15 @@ def effective_content_label(screen: Screen) -> Optional[str]:
     return None
 
 
+PAGE_SIZES = ("auto", "native", "1280x720", "1920x1080", "2560x1440", "3840x2160")
+
+
+def _page_size(d: Dashboard) -> str:
+    """Tamanho em que a página do dashboard é desenhada antes de ser ajustada à tela da TV."""
+    v = (d.options or {}).get("page_size", "auto")
+    return v if v in PAGE_SIZES else "auto"
+
+
 def build_dashboard_url(dashboard: Dashboard) -> str:
     """Aplica parâmetros de exibição conforme a plataforma (ex.: modo kiosk do Grafana)."""
     url = dashboard.url
@@ -214,6 +223,7 @@ def player_config(screen: Screen) -> Dict[str, Any]:
                 "auth_type": d.auth_type,
                 "load_timeout_seconds": int((d.options or {}).get("load_timeout_seconds", 60)),
                 "full_reload_hours": int((d.options or {}).get("full_reload_hours", 12)),
+                "page_size": _page_size(d),
                 "version": d.version,
                 "auth": dashboard_auth(d),
             }
